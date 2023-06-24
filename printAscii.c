@@ -8,18 +8,24 @@
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize.h"
 
+const int ASCII_HEIGHT = 15;
+const int ASCII_WIDTH = 7;
+//const char ASCII_RAMP[] = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
+const char ASCII_RAMP[] = " `.-':_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
+
 int countDistance(char *num1,char *num2);
 char *getBinaryPixelGrid(int a, int b, int x, int y, unsigned char *imageData, int imageWidth);
 char findAsciiMatch(char *pixelGrid, unsigned char *imageData, char *valuesList);
+char findAsciiMatchByRamp(int averageColor);
 void printAsciiImage(int width, int height, unsigned char *imageData, char *valuesList);
 void printAsciiImageToFile(int width, int height, unsigned char *imageData, char *valuesList, int x, int y, char *output);
 
 void convertAlphaToWhite(int width,int height,int channels, unsigned char *imageData);
 void inverseColors(int width,int height,int channels, unsigned char *imageData);
+void fakeGrey(int *width, int *height, int channels, unsigned char **imageData);
 
-const int ASCII_HEIGHT = 15;
-const int ASCII_WIDTH = 7;
 
+int mode = 0;
 int threshold = 128;
 int alpha = 255;
 int resizeW = 0;
@@ -28,7 +34,7 @@ int resizeH = 0;
 int main(int argc, char *argv[]){
     //Parsing command line input
     if(argc < 2){
-        fprintf(stderr, "Usage: %s [-i/ -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [-i/ -m 0..1 / -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
         return __LINE__;
     }
 
@@ -42,12 +48,20 @@ int main(int argc, char *argv[]){
     for (optind = 1; optind < argc && argv[optind][0] == '-'; optind++) {
         switch (argv[optind][1]) {
         case 'i': inverseColorsB = true; break;
+        case 'm': 
+            optind++;
+            mode = atoi(argv[optind]);
+            if (mode > 2|| mode < 0){
+                fprintf(stderr, "Usage: %s [-i/ -m 0..1 / -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
+                return __LINE__;
+            }
+            break;
         case 'a': 
             alphaToWhite = true; 
             optind++;
             alpha = atoi(argv[optind]);
             if (alpha > 255 || alpha < 0){
-                fprintf(stderr, "Usage: %s [-i/ -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-i/ -m 0..1 / -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
                 return __LINE__;
             }
             break;
@@ -55,7 +69,7 @@ int main(int argc, char *argv[]){
             optind++;
             threshold = atoi(argv[optind]);
             if (threshold > 255 || threshold < 0){
-                fprintf(stderr, "Usage: %s [-i/ -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-i/ -m 0..1 / -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
                 return __LINE__;
             }
             break;
@@ -64,7 +78,7 @@ int main(int argc, char *argv[]){
             resize = true;
             resizeW = atoi(argv[optind]);
             if (resizeW <= 0){
-                fprintf(stderr, "Usage: %s [-i/ -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-i/ -m 0..1 / -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
                 return __LINE__;
             }
             break;
@@ -75,7 +89,7 @@ int main(int argc, char *argv[]){
             break;
 
         default:
-            fprintf(stderr, "Usage: %s [-i/ -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
+            fprintf(stderr, "Usage: %s [-i/ -m 0..1 / -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
             return __LINE__;
         }   
     }
@@ -97,6 +111,18 @@ int main(int argc, char *argv[]){
     printf("Image height: %d\n", height);
     printf("Image channels: %d\n", channels);
     */
+    switch (mode)
+    {
+    case 0:
+        break;
+    case 1:
+        fakeGrey(&width, &height, channels, &imageData);
+        break;
+    case 2:
+        break;
+    default:
+        break;
+    }
 
     if(resize){
         resizeW = resizeW * ASCII_WIDTH;
@@ -112,6 +138,9 @@ int main(int argc, char *argv[]){
         height = resizeH;
         width = resizeW;
     }
+
+
+
     if(alphaToWhite){
         convertAlphaToWhite(width, height, channels, imageData);
     }
@@ -124,6 +153,7 @@ int main(int argc, char *argv[]){
     }else{
         printAsciiImageToFile(width, height, imageData, argv[1], ASCII_WIDTH, ASCII_HEIGHT, outputFile);
     }
+
     stbi_image_free(imageData);
     return 0;
 }
@@ -203,13 +233,43 @@ char findAsciiMatch(char *pixelGrid, unsigned char *imageData, char *valuesList)
     return closestChar;
 }
 
+int getAverageColor(int a, int b, int x, int y, unsigned char *imageData, int imageWidth){
+    int average=0, n=0;
+    for (int k = b; k < y; k++)
+    {
+        for (int i = a*2; i < x*2; i=i+2)
+        {
+            average = average + imageData[i + imageWidth*2*k];
+            n++;
+        }
+    }
+    return average/n;
+}
+
+char findAsciiMatchByRamp(int averageColor){
+    return ASCII_RAMP[((averageColor) * (strlen(ASCII_RAMP) - 1)) / 255];
+}
+
 //Reads the image in windows and converts each window to an Ascii character
 void printAsciiImage(int width, int height, unsigned char *imageData, char *valuesList){
     for (int i = ASCII_HEIGHT; i < height; i=i+ASCII_HEIGHT)
     {
         for (int k = ASCII_WIDTH; k < width; k=k+ASCII_WIDTH)
         {
-            printf("%c", findAsciiMatch(getBinaryPixelGrid(k-ASCII_WIDTH, i-ASCII_HEIGHT, k, i, imageData, width), imageData, valuesList));
+            switch (mode)
+            {
+            case 0:
+                printf("%c", findAsciiMatch(getBinaryPixelGrid(k-ASCII_WIDTH, i-ASCII_HEIGHT, k, i, imageData, width), imageData, valuesList));
+                break;
+            case 1:
+                printf("%c", findAsciiMatch(getBinaryPixelGrid(k-ASCII_WIDTH, i-ASCII_HEIGHT, k, i, imageData, width), imageData, valuesList));
+                break;
+            case 2:
+                printf("%c", findAsciiMatchByRamp(getAverageColor(k-ASCII_WIDTH, i-ASCII_HEIGHT, k, i, imageData, width)));
+                break;
+            default:
+                break;
+            }
         } 
         printf("\n");
     }
@@ -252,4 +312,55 @@ void inverseColors(int width,int height,int channels, unsigned char *imageData){
     {
         imageData[i] = 255 - imageData[i];
     }
+}
+
+void fakeGrey(int *width, int *height, int channels, unsigned char **imageData){
+    unsigned char *imageBuffer = malloc((*width)*(*height)*channels*4);
+    stbir_resize_uint8(*imageData, (*width), (*height), 0, imageBuffer, (*width) * 2, (*height) * 2, 0, channels);
+
+    int tmp;
+    for (int i = 0; i < (*height) * 2; i=i+2)
+    {
+        for (int k = 0; k < (*width) * channels * 2; k=k+2*channels)
+        {
+            tmp = imageBuffer[k + i*(*width)*channels*2];
+            if(tmp < 205){
+                if(tmp < 154){
+                    if(tmp < 102){
+                        if (tmp < 51)
+                        {
+                            imageBuffer[k + i*(*width)*channels*2] = 0;
+                            imageBuffer[k + channels + i*(*width)*channels*2] = 0;
+                            imageBuffer[k + (i+1)*(*width)*channels*2] = 0;
+                            imageBuffer[k + channels + (i+1)*(*width)*channels*2] = 0;                        
+                        }else{
+                            imageBuffer[k + i*(*width)*channels*2] = 255;
+                            imageBuffer[k + channels + i*(*width)*channels*2] = 0;
+                            imageBuffer[k + (i+1)*(*width)*channels*2] = 0;
+                            imageBuffer[k + channels + (i+1)*(*width)*channels*2] = 0;
+                        }
+                    }else{
+                        imageBuffer[k + i*(*width)*channels*2] = 255;
+                        imageBuffer[k + channels + i*(*width)*channels*2] = 0;
+                        imageBuffer[k + (i+1)*(*width)*channels*2] = 255;
+                        imageBuffer[k + channels + (i+1)*(*width)*channels*2] = 0;
+                    }
+                }else{
+                    imageBuffer[k + i*(*width)*channels*2] = 255;
+                    imageBuffer[k + channels + i*(*width)*channels*2] = 255;
+                    imageBuffer[k + (i+1)*(*width)*channels*2] = 255;
+                    imageBuffer[k + channels + (i+1)*(*width)*channels*2] = 0;
+                }
+            }else{
+                imageBuffer[k + i*(*width)*channels*2] = 255;
+                imageBuffer[k + channels + i*(*width)*channels*2] = 255;
+                imageBuffer[k + (i+1)*(*width)*channels*2] = 255;
+                imageBuffer[k + channels + (i+1)*(*width)*channels*2] = 255;
+            }
+        }
+    }
+    *width = *width * 2;
+    *height = *height * 2;
+    stbi_image_free(*imageData);
+    *imageData = imageBuffer;
 }
