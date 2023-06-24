@@ -3,31 +3,39 @@
 #include <stdbool.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
+//#define STB_IMAGE_WRITE_IMPLEMENTATION
+//#include "stb_image_write.h"
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include "stb_image_resize.h"
 
 int countDistance(char *num1,char *num2);
 char *getBinaryPixelGrid(int a, int b, int x, int y, unsigned char *imageData, int imageWidth);
 char findAsciiMatch(char *pixelGrid, unsigned char *imageData, char *valuesList);
-void printAsciiImage(int width, int height, unsigned char *imageData, char *valuesList, int x, int y);
+void printAsciiImage(int width, int height, unsigned char *imageData, char *valuesList);
 void printAsciiImageToFile(int width, int height, unsigned char *imageData, char *valuesList, int x, int y, char *output);
 
 void convertAlphaToWhite(int width,int height,int channels, unsigned char *imageData);
 void inverseColors(int width,int height,int channels, unsigned char *imageData);
 
+const int ASCII_HEIGHT = 15;
+const int ASCII_WIDTH = 7;
+
 int threshold = 128;
 int alpha = 255;
+int resizeW = 0;
+int resizeH = 0;
 
 int main(int argc, char *argv[]){
     //Parsing command line input
     if(argc < 2){
-        fprintf(stderr, "Usage: %s [-i / -t 0<n<255 / -a] [image file] [AsciiGridDict.txt]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [-i/ -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
         return __LINE__;
     }
 
     bool inverseColorsB = false;
     bool alphaToWhite = false;
     bool output = false;
+    bool resize = false;
     char outputFile[255];
 
     size_t optind;
@@ -39,7 +47,7 @@ int main(int argc, char *argv[]){
             optind++;
             alpha = atoi(argv[optind]);
             if (alpha > 255 || alpha < 0){
-                fprintf(stderr, "Usage: %s [-i / -t 0<n<255 / -a 0<n<255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-i/ -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
                 return __LINE__;
             }
             break;
@@ -47,18 +55,27 @@ int main(int argc, char *argv[]){
             optind++;
             threshold = atoi(argv[optind]);
             if (threshold > 255 || threshold < 0){
-                fprintf(stderr, "Usage: %s [-i / -t 0<n<255 / -a 0<n<255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-i/ -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
                 return __LINE__;
             }
-            
+            break;
+        case 'w':
+            optind++;
+            resize = true;
+            resizeW = atoi(argv[optind]);
+            if (resizeW <= 0){
+                fprintf(stderr, "Usage: %s [-i/ -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
+                return __LINE__;
+            }
             break;
         case 'o':
             optind++;
             output = true;
             strcpy(outputFile, argv[optind]);
             break;
+
         default:
-            fprintf(stderr, "Usage: %s [-i / -t 0<n<255 / -a 0<n<255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
+            fprintf(stderr, "Usage: %s [-i/ -w [int] / -t 0..255 / -a 0..255 / -o [output.txt]] [image file] [AsciiGridDict.txt]\n", argv[0]);
             return __LINE__;
         }   
     }
@@ -74,11 +91,27 @@ int main(int argc, char *argv[]){
         fprintf(stderr, "Failed to load the image file: %s.\n", argv[0]);
         return __LINE__;
     }
+
     /*
     printf("Image width: %d\n", width);
     printf("Image height: %d\n", height);
     printf("Image channels: %d\n", channels);
     */
+
+    if(resize){
+        resizeW = resizeW * ASCII_WIDTH;
+        resizeH = (height / width) * resizeW;
+
+        //Alocating memory for resized image and resizing
+        unsigned char *imageBuffer = malloc(resizeW*resizeH*channels);
+        stbir_resize_uint8(imageData, width, height, 0, imageBuffer, resizeW, resizeH, 0, channels);
+        //Freeing original image
+        stbi_image_free(imageData);
+        //Updating image and proportions to new resized image
+        imageData = imageBuffer;
+        height = resizeH;
+        width = resizeW;
+    }
     if(alphaToWhite){
         convertAlphaToWhite(width, height, channels, imageData);
     }
@@ -87,17 +120,15 @@ int main(int argc, char *argv[]){
         inverseColors(width, height, channels, imageData);
     }
     if(output == false){
-        printAsciiImage(width, height, imageData, argv[1], 7, 15);
+        printAsciiImage(width, height, imageData, argv[1]);
     }else{
-        printAsciiImageToFile(width, height, imageData, argv[1], 7, 15, outputFile);
+        printAsciiImageToFile(width, height, imageData, argv[1], ASCII_WIDTH, ASCII_HEIGHT, outputFile);
     }
-
-
     stbi_image_free(imageData);
     return 0;
 }
 
-
+//Calculates the closest Ascii character to a grid of pixels
 int countDistance(char *num1,char *num2){
     int distance = 0, len = strlen(num1);
 
@@ -117,6 +148,7 @@ int countDistance(char *num1,char *num2){
 }
 
 char gridBuffer[255] = "";
+//Converts a grid of pixels to a string of a binary number
 char *getBinaryPixelGrid(int a, int b, int x, int y, unsigned char *imageData, int imageWidth){
     strcpy(gridBuffer, "");
 
@@ -171,12 +203,13 @@ char findAsciiMatch(char *pixelGrid, unsigned char *imageData, char *valuesList)
     return closestChar;
 }
 
-void printAsciiImage(int width, int height, unsigned char *imageData, char *valuesList, int x, int y){
-    for (int i = y; i < height; i=i+y)
+//Reads the image in windows and converts each window to an Ascii character
+void printAsciiImage(int width, int height, unsigned char *imageData, char *valuesList){
+    for (int i = ASCII_HEIGHT; i < height; i=i+ASCII_HEIGHT)
     {
-        for (int k = x; k < width; k=k+x)
+        for (int k = ASCII_WIDTH; k < width; k=k+ASCII_WIDTH)
         {
-            printf("%c", findAsciiMatch(getBinaryPixelGrid(k-x, i-y, k, i, imageData, width), imageData, valuesList));
+            printf("%c", findAsciiMatch(getBinaryPixelGrid(k-ASCII_WIDTH, i-ASCII_HEIGHT, k, i, imageData, width), imageData, valuesList));
         } 
         printf("\n");
     }

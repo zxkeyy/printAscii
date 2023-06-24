@@ -15,6 +15,7 @@ $ ./printAscii [options] [image] AsciiBi2.txt
 - `-i` : inverses the resulting Ascii image colors.
 - `-a 0..255` : converts pixels with 0 alpha to the value specified.
 - `-t 0..255` : changes the threshold for converting pixels to black or white.
+- `-w [output width]` : resizes the output to the given width in Ascii characters.
 - `-o [output file]` : prints the Ascii art in a file instead of the terminal.
 
 ## Image loading library :
