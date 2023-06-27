@@ -20,7 +20,7 @@ $ ./printAscii [options] [image] AsciiBi2.txt
 - `-o [output file]` : prints the Ascii art in a file instead of the terminal.
 
 # printVideoAscii
-![](https://github.com/zxkeyy/printAscii/blob/master/spiningEarthAscii.gif)
+![](https://github.com/zxkeyy/printAscii/blob/master/local/spiningEarthAscii.gif)
 
 ## How to use:
 - Build with:
