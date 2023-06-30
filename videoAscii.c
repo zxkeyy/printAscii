@@ -11,7 +11,8 @@ int main(int argc, char *argv[]){
     {
         sprintf(command, "./printAscii -m 1 %s/%d.png AsciiBi2.txt >> %s", imagesFolder, i, outputFile);
         system(command);
-        system("echo '\n' >> vid.txt");
+        sprintf(command, "echo '\n' >> %s", outputFile);
+        system(command);
     }
     
     

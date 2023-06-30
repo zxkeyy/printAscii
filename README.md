@@ -28,7 +28,12 @@ $ ./printAscii [options] [image] AsciiBi2.txt
 gcc printVideoAscii.c -o printVideoAscii -Wall
 gcc videoAscii.c -o videoAscii -Wall
 ```
-- Turn the video you want to play into a sequence of png pictures named 1.png, 2.png ... (you can use one of the many online tools made for this).
+- Turn the video you want to play into a sequence of png pictures named 1.png, 2.png...
+- Example with ffmpeg:
+```
+sudo apt install ffmpeg
+ffmpeg -i [video] %d.png
+```
 - Run the follwing commands to generate a txt file with the video:
 ```
 ./videoAscii [output text file] [address of folder where images are] [number of images(frames)]
