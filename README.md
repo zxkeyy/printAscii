@@ -22,22 +22,23 @@ $ ./printAscii [options] [image] AsciiBi2.txt
 # printVideoAscii
 ![](https://github.com/zxkeyy/printAscii/blob/master/local/spiningEarthAscii.gif)
 
+## Dependencies
+- FFMPEG:
+```
+sudo apt install ffmpeg
+```
+
 ## How to use:
 - Build with:
 ```
 gcc printVideoAscii.c -o printVideoAscii -Wall
 gcc videoAscii.c -o videoAscii -Wall
 ```
-- Turn the video you want to play into a sequence of png pictures named 1.png, 2.png...
-- Example with ffmpeg:
-```
-sudo apt install ffmpeg
-ffmpeg -i [video] %d.png
-```
 - Run the follwing commands to generate a txt file with the video:
 ```
-./videoAscii [output text file] [address of folder where images are] [number of images(frames)]
+./videoAscii [output text file] [video] [number of frames]
 ```
+-(warning: The number of frames must be less than or equal to the number of frames in the original video)
 - Run:
 ```
 ./playVideoAscii [output text file] [framerate]
