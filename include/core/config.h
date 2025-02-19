@@ -12,7 +12,9 @@ typedef struct {
     int alpha;
     int negative;
     int dither;
-    int threshold;
+    int dither_threshold;
+    int sobel_edge_detection;
+    int sobel_edge_detection_threshold;
     int verbose;
     float font_aspect_ratio; // Width to height ratio of the font
     AsciiRamp ramp;

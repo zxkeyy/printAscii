@@ -14,7 +14,8 @@ struct option long_options[] = {
     {"alpha", required_argument, NULL, 'a'},
     {"threshold", required_argument, NULL, 't'},
     {"negative", no_argument, NULL, 'n'},
-    {"dither", no_argument, NULL, 'd'},
+    {"dither", optional_argument, NULL, 'd'},
+    {"sobel-edge-detection", optional_argument, NULL, 's'},
     {"font-aspect-ratio", required_argument, NULL, 0},
     {"verbose", no_argument, NULL, 'v'},
     {"help", no_argument, NULL, '?'},
@@ -32,8 +33,8 @@ void print_usage(const char* program_name) {
            "  -h, --height   <height>    Output height in characters ('-1' to keep the height of the source image)\n"
            "  -a, --alpha    <alpha>     Defines brightness of background for images with alpha transparency (0 - 255, default=0)\n"
            "  -n, --negative             Invert colors\n"
-           "  -d  --dither               Apply dithering to the image\n"
-           "  -t  --threshold            Threshold for dithering (0 - 255, default=128)\n"
+           "  -d  --dither               Apply floyd steinberg dithering to the image, (optional threshold argument 0 - 255, default=128)\n"
+           "  -s  --sobel-edge-detection    <threshold> Apply sobel edge detection, (optional threshold argument 0 - 255, default=128)\n"
            "  --font-aspect-ratio <ratio> Width to height ratio of the font (default: 0.45)\n"
            "  -v, --verbose              Verbose output\n"
            "  -?, --help                 Display this help message\n",
@@ -46,7 +47,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     //To calculate if user wants to keep aspect ratio
     int width_set = 0;
     int height_set = 0;
-    while ((opt = getopt_long(argc, argv, "i:o:w:h:g:a:t:nqrdv?", long_options, &optind)) != -1) {
+    while ((opt = getopt_long(argc, argv, "i:o:w:h:g:a:t:s::nqrdv?", long_options, &optind)) != -1) {
         switch (opt) {
             case 'i': config->input_path = optarg; break;
             case 'o': config->output_path = optarg; break;
@@ -56,8 +57,16 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
             case 'h': config->height = atoi(optarg); height_set = 1; break;
             case 'a': config->alpha = atoi(optarg); break;
             case 'n': config->negative = 1; break;
-            case 'd': config->dither = 1; break;
-            case 't': config->threshold = atoi(optarg); break;
+            case 'd': 
+                config->dither = 1; 
+                if (optarg)
+                    config->dither_threshold = atoi(optarg);
+                break;
+            case 's': 
+                config->sobel_edge_detection = 1; 
+                if (optarg)
+                    config->sobel_edge_detection_threshold = atoi(optarg);
+                break;
             case 'v': config->verbose = 1; break;
             case '?': print_usage(argv[0]); return 1;
             case 0: 
@@ -97,7 +106,12 @@ int validate_config(AppConfig* config) {
         return -1;
     }
 
-    if (config->threshold < 0 || config->threshold > 255) {
+    if (config->dither_threshold < 0 || config->dither_threshold > 255) {
+        fprintf(stderr, "Threshold value must be between 0 and 255\n");
+        return -1;
+    }
+
+    if (config->sobel_edge_detection_threshold < 0 || config->sobel_edge_detection_threshold > 255) {
         fprintf(stderr, "Threshold value must be between 0 and 255\n");
         return -1;
     }

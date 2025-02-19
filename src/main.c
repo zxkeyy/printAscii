@@ -8,6 +8,7 @@
 #include "preprocessing/grayscale.h"
 #include "preprocessing/invert.h"
 #include "preprocessing/resize.h"
+#include "preprocessing/sobel_edge_detection.h"
 #include "io/image_loader.h"
 #include "io/image_saver.h"
 #include "core/ascii_ramp.h"
@@ -27,7 +28,9 @@ const AppConfig DEFAULT_CONFIG = {
     .alpha = 0,
     .negative = 0,
     .dither = 0,
-    .threshold = 128,
+    .dither_threshold = 128,
+    .sobel_edge_detection = 0,
+    .sobel_edge_detection_threshold = 128,
     .font_aspect_ratio = 0.45,
     .verbose = 0,
     .ramp = {0}
@@ -73,20 +76,26 @@ int main(int argc, char *argv[]) {
     //debug
     image_save_to_png_file(img, "2resized.png");
 
-    if (config.negative) {
-        invert_image(img);
-        //debug
-        image_save_to_png_file(img, "3inverted.png");
-    }
 
     image_to_grayscale(img, config.alpha);
     //debug
-    image_save_to_png_file(img, "4gray.png");
+    image_save_to_png_file(img, "3gray.png");
+
+    if (config.sobel_edge_detection){
+        sobel_edge_detection(img, config.sobel_edge_detection_threshold);
+        //debug
+        image_save_to_png_file(img, "4edgedetect.png");
+    }
+    if (config.negative) {
+        invert_image(img);
+        //debug
+        image_save_to_png_file(img, "5inverted.png");
+    }
 
     if (config.dither) {
-        floyd_steinberg_dither(img, config.threshold);
+        floyd_steinberg_dither(img, config.dither_threshold);
         //debug
-        image_save_to_png_file(img, "5dithered.png");
+        image_save_to_png_file(img, "6dithered.png");
     }
 
     char* output = intensity_map(img, &config.ramp);
