@@ -9,6 +9,7 @@
 #include "preprocessing/invert.h"
 #include "preprocessing/resize.h"
 #include "preprocessing/sobel_edge_detection.h"
+#include "preprocessing/gaussian_blur.h"
 #include "io/image_loader.h"
 #include "io/image_saver.h"
 #include "core/ascii_ramp.h"
@@ -80,6 +81,10 @@ int main(int argc, char *argv[]) {
     image_to_grayscale(img, config.alpha);
     //debug
     image_save_to_png_file(img, "3gray.png");
+
+    gaussian_blur(img, 1.0);
+    //debug
+    image_save_to_png_file(img, "4blurred.png");
 
     if (config.sobel_edge_detection){
         sobel_edge_detection(img, config.sobel_edge_detection_threshold);
