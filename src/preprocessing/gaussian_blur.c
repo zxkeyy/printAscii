@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "preprocessing/gaussian_blur.h"
+#include "utilities/clamp.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -51,14 +52,18 @@ void gaussian_blur(Image* img, float sigma){
         return;
     }
 
-    for(int y = half_kernel; y < img->height - half_kernel; y++){
-        for(int x = half_kernel; x < img->width - half_kernel; x++){
+    for (int y = 0; y < img->height; y++) {
+        for (int x = 0; x < img->width; x++) {
             float sum = 0;
-            for(int ky = -half_kernel; ky <= half_kernel; ky++){
-                for(int kx = -half_kernel; kx <= half_kernel; kx++){
-                    const uint8_t* pixel = image_pixel_at(img, x + kx, y + ky);
-                    const float value = kernel[(ky + half_kernel) * kernel_size + (kx + half_kernel)];
-                    sum += value * *pixel;
+            for (int ky = -half_kernel; ky <= half_kernel; ky++) {
+                for (int kx = -half_kernel; kx <= half_kernel; kx++) {
+                    // Clamp coordinates to extend the border
+                    int clamped_x = clamp(x + kx, 0, img->width - 1);
+                    int clamped_y = clamp(y + ky, 0, img->height - 1);
+
+                    const uint8_t* pixel = image_pixel_at(img, clamped_x, clamped_y);
+                    float weight = kernel[(ky + half_kernel) * kernel_size + (kx + half_kernel)];
+                    sum += weight * (*pixel);
                 }
             }
             uint8_t* out_pixel = image_pixel_at(output, x, y);
