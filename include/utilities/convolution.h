@@ -3,6 +3,7 @@
 
 #include "../core/image.h"
 
-void convolution(int* input, int input_height, int input_width, const int* kernel, int kernel_size);
+void convolution(const int* input, int input_height, int input_width,
+                 int* output, const int* kernel, int kernel_size, int divisor);
 
 #endif // CONVOLUTION_H
