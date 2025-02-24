@@ -14,6 +14,8 @@
 #include "io/image_saver.h"
 #include "core/ascii_ramp.h"
 #include "conversion/intensity_map.h"
+#include "utilities/sobel_operator.h"
+#include "utilities/non_maximum_suppression.h"
 
 const AsciiRamp DEFAULT_RAMP = {
     .characters = " .:-=+*#@&8B$@",
@@ -82,15 +84,31 @@ int main(int argc, char *argv[]) {
     //debug
     image_save_to_png_file(img, "3gray.png");
 
-    gaussian_blur(img, 1.0);
-    //debug
-    image_save_to_png_file(img, "4blurred.png");
+    // gaussian_blur(img, 1.0);
+    // //debug
+    // image_save_to_png_file(img, "4blurred.png");
+
+    // // Allocate memory for the output image
+    // Image* output3 = image_create(img->width, img->height, IMAGE_TYPE_GRAY);
+    // if (!output3) {
+    //     fprintf(stderr, "Failed to allocate output image\n");
+    //     return -1;
+    // }
+
+    // float* angles = malloc(img->width * img->height * sizeof(float));
+    // sobel_operator(img->pixels, output3->pixels, angles, img->width, img->height, -1);
+    // image_save_to_png_file(output3, "4magnitude.png");
+
+    // non_maximum_suppression(output3->pixels, angles, img->pixels, img->width, img->height);
+    // image_save_to_png_file(img, "4nonmaxsupr.png");
+
 
     if (config.sobel_edge_detection){
         sobel_edge_detection(img, config.sobel_edge_detection_threshold);
         //debug
         image_save_to_png_file(img, "4edgedetect.png");
     }
+
     if (config.negative) {
         invert_image(img);
         //debug
