@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "preprocessing/gaussian_blur.h"
-#include "utilities/clamp.h"
+#include "utilities/convolution.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -45,39 +45,33 @@ void gaussian_blur(Image* img, float sigma){
     }
 
     // Apply the convolution
-    Image* output = image_create(img->width, img->height, img->type);
-    if(!output){
-        fprintf(stderr, "Failed to allocate output image\n");
+    // Allocate temporary buffers to store values as integers
+    int* input_buffer = malloc(img->width * img->height * sizeof(int));
+    int* output_buffer = malloc(img->width * img->height * sizeof(int));
+    if(!input_buffer || !output_buffer){
+        fprintf(stderr, "Failed to allocate convolution buffers\n");
         free(kernel);
+        if(input_buffer) free(input_buffer);
+        if(output_buffer) free(output_buffer);
         return;
     }
 
-    for (int y = 0; y < img->height; y++) {
-        for (int x = 0; x < img->width; x++) {
-            float sum = 0;
-            for (int ky = -half_kernel; ky <= half_kernel; ky++) {
-                for (int kx = -half_kernel; kx <= half_kernel; kx++) {
-                    // Clamp coordinates to extend the border
-                    int clamped_x = clamp(x + kx, 0, img->width - 1);
-                    int clamped_y = clamp(y + ky, 0, img->height - 1);
+    // Initialize buffer to image pixels values
+    for (int i = 0; i < img->width * img->height; i++)
+    {
+        input_buffer[i] = (int) img->pixels[i];
+    }
+    
+    convolution(input_buffer, img->height, img->width, output_buffer, kernel, kernel_size, 1);
 
-                    const uint8_t* pixel = image_pixel_at(img, clamped_x, clamped_y);
-                    float weight = kernel[(ky + half_kernel) * kernel_size + (kx + half_kernel)];
-                    sum += weight * (*pixel);
-                }
-            }
-            uint8_t* out_pixel = image_pixel_at(output, x, y);
-            *out_pixel = (uint8_t)sum;
-        }
+    // Copy result to image pixels
+    for (int i = 0; i < img->width * img->height; i++)
+    {
+        img->pixels[i] = (uint8_t) output_buffer[i];
     }
 
+    free(input_buffer);
+    free(output_buffer);
     free(kernel);
-
-    free(img->pixels);
-    img->pixels = output->pixels;
-    output->pixels = NULL;
-    image_free(output);
-
     return;
-
 }

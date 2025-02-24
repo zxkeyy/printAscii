@@ -4,7 +4,7 @@
 #include "utilities/clamp.h"
 
 void convolution(const int* input, int input_height, int input_width,
-                 int* output, const int* kernel, int kernel_size, int divisor) {
+                 int* output, const float* kernel, int kernel_size, int divisor) {
     // Validate input parameters
     if (kernel_size % 2 == 0 || kernel_size < 1) {
         fprintf(stderr, "Kernel size must be a positive odd number\n");
@@ -34,7 +34,7 @@ void convolution(const int* input, int input_height, int input_width,
                     img_x = clamp(img_x, 0, input_width - 1);
                     img_y = clamp(img_y, 0, input_height - 1);
                     
-                    sum += kernel[ky * kernel_size + kx] * input[img_y * input_width + img_x];
+                    sum += (int)(kernel[ky * kernel_size + kx] * (float) input[img_y * input_width + img_x]);
                 }
             }
             

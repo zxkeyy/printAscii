@@ -4,8 +4,6 @@
 #include "core/image.h"
 #include "preprocessing/sobel_edge_detection.h"
 #include "utilities/sobel_operator.h"
-#include "utilities/convolution.h"
-#include "utilities/clamp.h"
 
 void sobel_edge_detection(Image* img, uint16_t threshold){
     if (img->type != IMAGE_TYPE_GRAY) {

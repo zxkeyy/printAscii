@@ -4,6 +4,6 @@
 #include "../core/image.h"
 
 void convolution(const int* input, int input_height, int input_width,
-                 int* output, const int* kernel, int kernel_size, int divisor);
+                 int* output, const float* kernel, int kernel_size, int divisor);
 
 #endif // CONVOLUTION_H

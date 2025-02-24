@@ -8,12 +8,12 @@
 void sobel_operator(const uint8_t* input, uint8_t* magnitude, float* angle, int width, int height, int threshold){
 
     // Sobel operator kernels
-    const int kernel_x[9] = { 
+    const float kernel_x[9] = { 
         -1, 0, 1, 
         -2, 0, 2, 
         -1, 0, 1 
     };
-    const int kernel_y[9] = { 
+    const float kernel_y[9] = { 
          1,  2,  1, 
          0,  0,  0, 
         -1, -2, -1 
