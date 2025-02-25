@@ -34,7 +34,7 @@ void print_usage(const char* program_name) {
            "  -h, --height   <height>    Output height in characters ('-1' to keep the height of the source image)\n"
            "  -a, --alpha    <alpha>     Defines brightness of background for images with alpha transparency (0 - 255, default=0)\n"
            "  -n, --negative             Invert colors\n"
-           "  -d  --dither               Apply floyd steinberg dithering to the image, (optional threshold argument 0 - 255, default=128)\n"
+           "  -d  --dither<threshold>   Apply floyd steinberg dithering to the image, (optional threshold argument 0 - 255, default=128)\n"
            "  -s  --sobel-edge-detection<threshold> Apply sobel edge detection, (optional threshold argument 0 - 255, default=128)\n"
            "  -c  --canny-edge-detection<sigma,high threshold,low threshold>   Apply canny edge detection (optional arguments are float sigma, high threshold 0-255, low threshold 0-255, default=0.8, 120, 50)\n"
            "  --font-aspect-ratio <ratio> Width to height ratio of the font (default: 0.45)\n"
@@ -49,7 +49,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     //To calculate if user wants to keep aspect ratio
     int width_set = 0;
     int height_set = 0;
-    while ((opt = getopt_long(argc, argv, "i:o:w:h:g:a:t:s::c::nqrdv?", long_options, &optind)) != -1) {
+    while ((opt = getopt_long(argc, argv, "i:o:w:h:g:a:t:d::s::c::nqrv?", long_options, &optind)) != -1) {
         switch (opt) {
             case 'i': config->input_path = optarg; break;
             case 'o': config->output_path = optarg; break;
