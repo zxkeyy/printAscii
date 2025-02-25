@@ -36,7 +36,7 @@ Image* image_create(int width, int height, ImageType type) {
     }
 
     const size_t buffer_size = width * height * img->channels;
-    img->pixels = malloc(buffer_size);
+    img->pixels = calloc(buffer_size, sizeof(uint8_t)); // Calloc to avoid image ghosting
     
     if (!img->pixels) {
         perror("Failed to allocate pixel buffer");
