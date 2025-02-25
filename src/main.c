@@ -9,13 +9,11 @@
 #include "preprocessing/invert.h"
 #include "preprocessing/resize.h"
 #include "preprocessing/sobel_edge_detection.h"
-#include "preprocessing/gaussian_blur.h"
+#include "preprocessing/canny_edge_detection.h"
 #include "io/image_loader.h"
 #include "io/image_saver.h"
 #include "core/ascii_ramp.h"
 #include "conversion/intensity_map.h"
-#include "utilities/sobel_operator.h"
-#include "utilities/non_maximum_suppression.h"
 
 const AsciiRamp DEFAULT_RAMP = {
     .characters = " .:-=+*#@&8B$@",
@@ -34,6 +32,10 @@ const AppConfig DEFAULT_CONFIG = {
     .dither_threshold = 128,
     .sobel_edge_detection = 0,
     .sobel_edge_detection_threshold = 128,
+    .canny_edge_detection = 0,
+    .canny_edge_detection_sigma = 0.8,
+    .canny_edge_detection_high_threshold = 120,
+    .canny_edge_detection_low_threshold = 50,
     .font_aspect_ratio = 0.45,
     .verbose = 0,
     .ramp = {0}
@@ -44,7 +46,7 @@ int main(int argc, char *argv[]) {
     config.ramp = DEFAULT_RAMP;
 
     if (parse_arguments(argc, argv, &config) != 0) {
-        print_usage(argv[0]);
+        //print_usage(argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -84,29 +86,16 @@ int main(int argc, char *argv[]) {
     //debug
     image_save_to_png_file(img, "3gray.png");
 
-    // gaussian_blur(img, 1.0);
-    // //debug
-    // image_save_to_png_file(img, "4blurred.png");
-
-    // // Allocate memory for the output image
-    // Image* output3 = image_create(img->width, img->height, IMAGE_TYPE_GRAY);
-    // if (!output3) {
-    //     fprintf(stderr, "Failed to allocate output image\n");
-    //     return -1;
-    // }
-
-    // float* angles = malloc(img->width * img->height * sizeof(float));
-    // sobel_operator(img->pixels, output3->pixels, angles, img->width, img->height, -1);
-    // image_save_to_png_file(output3, "4magnitude.png");
-
-    // non_maximum_suppression(output3->pixels, angles, img->pixels, img->width, img->height);
-    // image_save_to_png_file(img, "4nonmaxsupr.png");
-
+    if(config.canny_edge_detection){
+        canny_edge_detection(img, config.canny_edge_detection_sigma, config.canny_edge_detection_high_threshold, config.canny_edge_detection_low_threshold);
+        //debug
+        image_save_to_png_file(img, "4cannyedgedetect.png");
+    }
 
     if (config.sobel_edge_detection){
         sobel_edge_detection(img, config.sobel_edge_detection_threshold);
         //debug
-        image_save_to_png_file(img, "4edgedetect.png");
+        image_save_to_png_file(img, "4sobeledgedetect.png");
     }
 
     if (config.negative) {

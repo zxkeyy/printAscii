@@ -57,7 +57,7 @@ void sobel_operator(const uint8_t* input, uint8_t* magnitude, float* angle, int 
             if (threshold == -1) {
                 magnitude[x + y * width] = (uint8_t) clamp(sqrt(gx * gx + gy * gy), 0, 255);
             } else {
-                magnitude[x + y * width] = sqrt(gx * gx + gy * gy) > threshold ? 255 : 0;
+                magnitude[x + y * width] = (sqrt(gx * gx + gy * gy) > threshold) ? 255 : 0;
             }
             if (angle != NULL)
             {

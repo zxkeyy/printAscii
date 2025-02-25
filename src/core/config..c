@@ -16,6 +16,7 @@ struct option long_options[] = {
     {"negative", no_argument, NULL, 'n'},
     {"dither", optional_argument, NULL, 'd'},
     {"sobel-edge-detection", optional_argument, NULL, 's'},
+    {"canny-edge-detection", optional_argument, NULL, 'c'},
     {"font-aspect-ratio", required_argument, NULL, 0},
     {"verbose", no_argument, NULL, 'v'},
     {"help", no_argument, NULL, '?'},
@@ -34,7 +35,8 @@ void print_usage(const char* program_name) {
            "  -a, --alpha    <alpha>     Defines brightness of background for images with alpha transparency (0 - 255, default=0)\n"
            "  -n, --negative             Invert colors\n"
            "  -d  --dither               Apply floyd steinberg dithering to the image, (optional threshold argument 0 - 255, default=128)\n"
-           "  -s  --sobel-edge-detection    <threshold> Apply sobel edge detection, (optional threshold argument 0 - 255, default=128)\n"
+           "  -s  --sobel-edge-detection<threshold> Apply sobel edge detection, (optional threshold argument 0 - 255, default=128)\n"
+           "  -c  --canny-edge-detection<sigma,high threshold,low threshold>   Apply canny edge detection (optional arguments are float sigma, high threshold 0-255, low threshold 0-255, default=0.8, 120, 50)\n"
            "  --font-aspect-ratio <ratio> Width to height ratio of the font (default: 0.45)\n"
            "  -v, --verbose              Verbose output\n"
            "  -?, --help                 Display this help message\n",
@@ -47,7 +49,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     //To calculate if user wants to keep aspect ratio
     int width_set = 0;
     int height_set = 0;
-    while ((opt = getopt_long(argc, argv, "i:o:w:h:g:a:t:s::nqrdv?", long_options, &optind)) != -1) {
+    while ((opt = getopt_long(argc, argv, "i:o:w:h:g:a:t:s::c::nqrdv?", long_options, &optind)) != -1) {
         switch (opt) {
             case 'i': config->input_path = optarg; break;
             case 'o': config->output_path = optarg; break;
@@ -67,6 +69,26 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 if (optarg)
                     config->sobel_edge_detection_threshold = atoi(optarg);
                 break;
+            case 'c':
+                config->canny_edge_detection = 1;
+                if(optarg){
+                    int params = 0;
+                    char *temp = optarg;
+                    while (*temp)
+                    {
+                        if(*temp == ',') params++;
+                        temp++;
+                    }
+                    params++;
+                    if (params >= 3) {
+                        sscanf(optarg, "%f,%d,%d", &config->canny_edge_detection_sigma, &config->canny_edge_detection_high_threshold, &config->canny_edge_detection_low_threshold);
+                    } else if (params == 2) {
+                        sscanf(optarg, "%f,%d", &config->canny_edge_detection_sigma, &config->canny_edge_detection_high_threshold);
+                    } else if (params == 1) {
+                        sscanf(optarg, "%f", &config->canny_edge_detection_sigma);
+                    } 
+                }
+                break;
             case 'v': config->verbose = 1; break;
             case '?': print_usage(argv[0]); return 1;
             case 0: 
@@ -85,7 +107,6 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     if(!width_set && height_set){
         config->width = 0; // 0 means keep aspect ratio
     }
-
 
     return 0;
 }
@@ -112,6 +133,16 @@ int validate_config(AppConfig* config) {
     }
 
     if (config->sobel_edge_detection_threshold < 0 || config->sobel_edge_detection_threshold > 255) {
+        fprintf(stderr, "Threshold value must be between 0 and 255\n");
+        return -1;
+    }
+
+    if (config->canny_edge_detection_high_threshold < 0 || config->canny_edge_detection_high_threshold > 255) {
+        fprintf(stderr, "Threshold value must be between 0 and 255\n");
+        return -1;
+    }
+
+    if (config->canny_edge_detection_low_threshold < 0 || config->canny_edge_detection_low_threshold > 255) {
         fprintf(stderr, "Threshold value must be between 0 and 255\n");
         return -1;
     }
