@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "conversion/braille.h"
+#include "conversion/convert_to_braille.h"
 
-int16_t* braille(Image* img, int threshold){
+int16_t* convert_to_braille(Image* img, int threshold){
     if (img == NULL) {
         fprintf(stderr, "Image is NULL\n");
         return NULL;
@@ -20,7 +20,7 @@ int16_t* braille(Image* img, int threshold){
         {6, 7}
     };
     
-    int16_t* output = malloc(((img->width/2) * (img->height/4) + img->height + 1) * sizeof(int16_t));
+    int16_t* output = malloc(((img->width / 2) * (img->height / 4) + img->height + 1) * sizeof(int16_t));
     if (!output) {
         perror("Failed to allocate output buffer");
         return NULL;
@@ -46,7 +46,7 @@ int16_t* braille(Image* img, int threshold){
         }
         output[index++] = '\n';
     }
-    output[index] = '\0';
+    output[index] = (int16_t)'\0';
 
     return output;
 }
