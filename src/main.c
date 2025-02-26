@@ -14,6 +14,8 @@
 #include "io/image_saver.h"
 #include "core/ascii_ramp.h"
 #include "conversion/intensity_map.h"
+#include "conversion/braille.h"
+#include "utilities/print_utf16_string.h"
 
 const AsciiRamp DEFAULT_RAMP = {
     .characters = " .:-=+*#@&8B$@",
@@ -110,15 +112,17 @@ int main(int argc, char *argv[]) {
         image_save_to_png_file(img, "6dithered.png");
     }
 
-    char* output = intensity_map(img, &config.ramp);
-    if (!output) {
-        fprintf(stderr, "Failed to generate intensity map\n");
-        image_free(img);
-        return EXIT_FAILURE;
-    }
+    // char* output = intensity_map(img, &config.ramp);
+    // if (!output) {
+    //     fprintf(stderr, "Failed to generate intensity map\n");
+    //     image_free(img);
+    //     return EXIT_FAILURE;
+    // }
+
+    int16_t* output = braille(img, 128);
 
     if (!config.no_terminal_output) {
-        printf("%s\n", output);
+        print_utf16_string(output);
     }
 
     if (config.output_path) {
