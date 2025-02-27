@@ -11,6 +11,8 @@ typedef struct {
     int height;
     int alpha;
     int negative;
+    int threshold;
+    int threshold_value;
     int dither;
     int dither_threshold;
     int sobel_edge_detection;
@@ -19,6 +21,7 @@ typedef struct {
     float canny_edge_detection_sigma;
     int canny_edge_detection_high_threshold;
     int canny_edge_detection_low_threshold;
+    int braille;
     int verbose;
     float font_aspect_ratio; // Width to height ratio of the font
     AsciiRamp ramp;

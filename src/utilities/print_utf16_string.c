@@ -15,3 +15,19 @@ void print_utf16_string(int16_t* string){
     }
 #endif
 }
+
+void print_utf16_string_to_file(int16_t* string, const char* filename){
+    FILE* file = fopen(filename, "w");
+    if (!file) {
+        perror("Failed to open output file");
+        return;
+    }
+
+    setlocale(LC_ALL, ""); // Enable Unicode
+
+    for (int i = 0; string[i] != 0; i++){
+        fprintf(file, "%lc", (wchar_t)string[i]);
+    }
+
+    fclose(file);
+}

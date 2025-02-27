@@ -30,6 +30,8 @@ const AppConfig DEFAULT_CONFIG = {
     .height = 0,
     .alpha = 0,
     .negative = 0,
+    .threshold = 0,
+    .threshold_value = 128,
     .dither = 0,
     .dither_threshold = 128,
     .sobel_edge_detection = 0,
@@ -38,6 +40,7 @@ const AppConfig DEFAULT_CONFIG = {
     .canny_edge_detection_sigma = 0.8,
     .canny_edge_detection_high_threshold = 120,
     .canny_edge_detection_low_threshold = 50,
+    .braille = 0,
     .font_aspect_ratio = 0.45,
     .verbose = 0,
     .ramp = {0}
@@ -112,33 +115,55 @@ int main(int argc, char *argv[]) {
         image_save_to_png_file(img, "6dithered.png");
     }
 
-    // char* output = intensity_map(img, &config.ramp);
-    // if (!output) {
-    //     fprintf(stderr, "Failed to generate intensity map\n");
-    //     image_free(img);
-    //     return EXIT_FAILURE;
-    // }
+    if (config.braille) {
+        int16_t* output = convert_to_braille(img, config.threshold_value);
+        if (!config.no_terminal_output) {
+            print_utf16_string(output);
+        }
 
-    int16_t* output = convert_to_braille(img, 128);
+        if (config.output_path) {
+            FILE* file = fopen(config.output_path, "w");
+            if (!file) {
+                perror("Failed to open output file");
+                free(output);
+                image_free(img);
+                return EXIT_FAILURE;
+            }
 
-    if (!config.no_terminal_output) {
-        print_utf16_string(output);
-    }
+            print_utf16_string_to_file(output, config.output_path);
+            fclose(file);
+        }
 
-    if (config.output_path) {
-        FILE* file = fopen(config.output_path, "w");
-        if (!file) {
-            perror("Failed to open output file");
-            free(output);
+        free(output);
+        image_free(img);
+        return EXIT_SUCCESS;
+    } else {
+        char* output = intensity_map(img, &config.ramp);
+        if (!output) {
+            fprintf(stderr, "Failed to generate intensity map\n");
             image_free(img);
             return EXIT_FAILURE;
         }
 
-        fprintf(file, "%s", output);
-        fclose(file);
-    }
+        if (!config.no_terminal_output) {
+            printf("%s", output);
+        }
 
-    free(output);
-    image_free(img);
-    return EXIT_SUCCESS;
+        if (config.output_path) {
+            FILE* file = fopen(config.output_path, "w");
+            if (!file) {
+                perror("Failed to open output file");
+                free(output);
+                image_free(img);
+                return EXIT_FAILURE;
+            }
+
+            fprintf(file, "%s", output);
+            fclose(file);
+        }
+
+        free(output);
+        image_free(img);
+        return EXIT_SUCCESS;
+    }
 }
