@@ -14,7 +14,7 @@
 #include "io/image_saver.h"
 #include "core/ascii_ramp.h"
 #include "conversion/intensity_map.h"
-#include "conversion/convert_to_braille.h"
+#include "conversion/image_to_braille.h"
 #include "utilities/print_utf16_string.h"
 
 const AsciiRamp DEFAULT_RAMP = {
@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (config.braille) {
-        int16_t* output = convert_to_braille(img, config.threshold_value);
+        int16_t* output = image_to_braille(img, config.threshold_value);
         if (!config.no_terminal_output) {
             print_utf16_string(output);
         }

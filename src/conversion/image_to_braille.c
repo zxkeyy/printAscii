@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "conversion/convert_to_braille.h"
+#include "conversion/image_to_braille.h"
 
-int16_t* convert_to_braille(Image* img, int threshold){
+int16_t* image_to_braille(Image* img, int threshold){
     if (img == NULL) {
         fprintf(stderr, "Image is NULL\n");
         return NULL;
