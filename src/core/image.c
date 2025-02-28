@@ -98,3 +98,54 @@ uint8_t* image_pixel_at(const Image* img, int x, int y) {
     
     return &img->pixels[(y * img->width + x) * img->channels];
 }
+
+RGBColor get_rgb_color(const Image* img, int x, int y, RGBColor* background_color){
+    const uint8_t* pixel = image_pixel_at(img, x, y);
+    RGBColor color = {0, 0, 0};
+    
+    switch(img->type) {
+        case IMAGE_TYPE_GRAY:
+            color.r = color.g = color.b = pixel[0];
+            break;
+        case IMAGE_TYPE_RGB:
+            color.r = pixel[0];
+            color.g = pixel[1];
+            color.b = pixel[2];
+            break;
+        case IMAGE_TYPE_RGBA:
+            // Alpha blending calculation
+            uint8_t alpha = pixel[3];
+            color.r = (pixel[0] * alpha / 255) + (background_color->r * (255 - alpha) / 255);
+            color.g = (pixel[1] * alpha / 255) + (background_color->g * (255 - alpha) / 255);
+            color.b = (pixel[2] * alpha / 255) + (background_color->b * (255 - alpha) / 255);
+            break;
+    }
+    
+    return color;
+}
+
+RGBAColor get_rgba_color(const Image* img, int x, int y){
+    const uint8_t* pixel = image_pixel_at(img, x, y);
+    RGBAColor color = {0, 0, 0, 0};
+    
+    switch(img->type) {
+        case IMAGE_TYPE_GRAY:
+            color.r = color.g = color.b = pixel[0];
+            color.a = 255;
+            break;
+        case IMAGE_TYPE_RGB:
+            color.r = pixel[0];
+            color.g = pixel[1];
+            color.b = pixel[2];
+            color.a = 255;
+            break;
+        case IMAGE_TYPE_RGBA:
+            color.r = pixel[0];
+            color.g = pixel[1];
+            color.b = pixel[2];
+            color.a = pixel[3];
+            break;
+    }
+    
+    return color;
+}
