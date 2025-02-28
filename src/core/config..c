@@ -4,6 +4,44 @@
 #include <getopt.h>
 #include "core/config.h"
 
+const AsciiRamp DEFAULT_RAMP = {
+    .characters = " .:-=+*#@&8B$@",
+    .length = 14
+};
+
+const AppConfig DEFAULT_CONFIG = {
+    .input_path = NULL,
+    .output_path = NULL,
+    .no_terminal_output = 0,
+    .width = 100,
+    .height = 0,
+    .alpha = 0,
+    .negative = 0,
+    .threshold = 0,
+    .threshold_value = 128,
+    .dither = 0,
+    .dither_threshold = 128,
+    .sobel_edge_detection = 0,
+    .sobel_edge_detection_threshold = 128,
+    .canny_edge_detection = 0,
+    .canny_edge_detection_sigma = 0.8,
+    .canny_edge_detection_high_threshold = 120,
+    .canny_edge_detection_low_threshold = 50,
+    .braille = 0,
+    .font_aspect_ratio = 0.45,
+    .verbose = 0,
+    .ramp = {0} // Initialize all to zero because C. ¯\_(ツ)_/¯
+};
+
+AppConfig get_default_config() {
+    AppConfig config = DEFAULT_CONFIG;
+    // Copy the default ramp
+    config.ramp = DEFAULT_RAMP;
+
+    return config;
+}
+
+
 struct option long_options[] = {
     {"input", required_argument, NULL, 'i'},
     {"output", required_argument, NULL, 'o'},
@@ -25,25 +63,48 @@ struct option long_options[] = {
 };
 
 void print_usage(const char* program_name) {
-    printf("Usage: %s [options]\n"
-           "Options:\n"
-           "  -i, --input    <input>     Input file (JPG, PNG, TGA, BMP, PSD, GIF, HDR, PIC image)\n"
-           "  -o, --output   <output>    Output file (optional)\n"
-           "  -q, --no-terminal-output   Quiet mode disables terminal output\n"
-           "  -g --ascii-gradient <gradient> ASCII gradient to use (default: ' .:-=+*#@&8B$@')\n"
-           "  -w, --width    <width>     Output width in characters ('-1' to keep the width of the source image, default: 100 character)\n"
-           "  -h, --height   <height>    Output height in characters ('-1' to keep the height of the source image)\n"
-           "  -a, --alpha    <alpha>     Defines brightness of background for images with alpha transparency (0 - 255, default=0)\n"
-           "  -n, --negative             Invert colors\n"
-           "  -t, --threshold <threshold> Threshold value for black and white output (optional default=128)\n"
-           "  -d  --dither<threshold>   Apply floyd steinberg dithering to the image, (optional threshold argument 0 - 255, default=128)\n"
-           "  -s  --sobel-edge-detection<threshold> Apply sobel edge detection, (optional threshold argument 0 - 255, default=128)\n"
-           "  -c  --canny-edge-detection<sigma,high threshold,low threshold>   Apply canny edge detection (optional arguments are float sigma, high threshold 0-255, low threshold 0-255, default=0.8, 120, 50)\n"
-           "  -b, --braille              Convert image to braille\n"
-           "  --font-aspect-ratio <ratio> Width to height ratio of the font (default: 0.45)\n"
-           "  -v, --verbose              Verbose output\n"
-           "  -?, --help                 Display this help message\n",
-           program_name);
+    printf("Usage: %s -i <input> [options]\n\n", program_name);
+    printf("Image to ASCII/ANSI/Unicode Art Converter\n\n");
+    
+    printf("Input/Output Options:\n");
+    printf("  -i, --input <file>         Input image file (JPG, PNG, TGA, BMP, etc.)\n");
+    printf("  -o, --output <file>        Output file (default: print to terminal)\n");
+    printf("  -q, --no-terminal-output   Don't print the result to terminal\n\n");
+    
+    printf("Display Options:\n");
+    printf("  -g, --ascii-gradient <str> ASCII gradient (default: ' .:-=+*#@&8B$@')\n");
+    printf("  -w, --width <n>            Output width in characters (default: 100)\n");
+    printf("                             if only height is specified, width will be calculated to keep image aspect ratio\n");
+    printf("                             Use -1 to keep source image width\n");
+    printf("  -h, --height <n>           Output height in characters\n");
+    printf("                             if only width is specified, height will be calculated to keep image aspect ratio\n");
+    printf("                             Use -1 to keep source image height\n");
+    printf("  -b, --braille              Convert image to braille patterns\n");
+    printf("  -r, --font-aspect-ratio <n> Font width to height ratio (default: 0.45)\n\n");
+    printf("                             Change this if the output aspect ratio is incorrect\n");
+    
+    printf("Processing Options:\n");
+    printf("  -a, --alpha <0-255>        Background brightness for transparency (default: 0)\n");
+    printf("  -t, --threshold <0-255>    Threshold for black/white output (default: 128)\n");
+    printf("  -n, --negative             Invert colors\n");
+    printf("  -d, --dither <0-255>       Apply Floyd-Steinberg dithering (default: 128)\n\n");
+    
+    printf("Edge Detection:\n");
+    printf("  -s, --sobel <0-255>        Sobel edge detection threshold (default: 128)\n");
+    printf("  -c, --canny <s,h,l>        Canny edge detection with parameters:\n");
+    printf("                             s=sigma (default: 0.8)\n");
+    printf("                             h=high threshold (default: 120)\n");
+    printf("                             l=low threshold (default: 50)\n\n");
+    
+    printf("General Options:\n");
+    printf("  -v, --verbose              Display processing information\n");
+    printf("  -V, --version              Show version information\n");
+    printf("  --help                     Display this help message\n\n");
+    
+    printf("Examples:\n");
+    printf("  %s -i input.jpg                      # Basic conversion\n", program_name);
+    printf("  %s -i input.png -o output.txt -w 80  # Custom width output to file\n", program_name);
+    printf("  %s -i input.jpg -b -n                # Braille with inverted colors\n", program_name);
 }
 
 int parse_arguments(int argc, char* argv[], AppConfig* config){
@@ -167,4 +228,34 @@ int validate_config(AppConfig* config) {
     }
 
     return 0;
+}
+
+void print_config(const AppConfig* config) {
+    printf("Configuration:\n");
+    printf("  Input file: %s\n", config->input_path);
+    printf("  Output file: %s\n", config->output_path ? config->output_path : "(terminal only)");
+    printf("  Dimensions: %d x %d characters\n", config->width, config->height);
+    printf("  ASCII gradient: \"%s\"\n", config->ramp.characters);
+    
+    if (config->braille)
+        printf("  Output mode: Braille\n");
+    else
+        printf("  Output mode: ASCII\n");
+    
+    if (config->negative)
+        printf("  Color mode: Inverted\n");
+    
+    if (config->dither)
+        printf("  Dithering: Enabled (threshold: %d)\n", config->dither_threshold);
+    
+    if (config->canny_edge_detection)
+        printf("  Edge detection: Canny (sigma: %.1f, high: %d, low: %d)\n", 
+               config->canny_edge_detection_sigma,
+               config->canny_edge_detection_high_threshold,
+               config->canny_edge_detection_low_threshold);
+    else if (config->sobel_edge_detection)
+        printf("  Edge detection: Sobel (threshold: %d)\n", 
+               config->sobel_edge_detection_threshold);
+    
+    printf("\n");
 }

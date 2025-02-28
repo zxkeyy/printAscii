@@ -18,6 +18,10 @@ void gaussian_blur(Image* img, float sigma){
         return;
     }
 
+    if (sigma == 0 ){
+        return;
+    }
+
     const int kernel_size = 2 * (int)(2 * sigma) + 3;
     const int half_kernel = kernel_size / 2;
     const float sigma2 = sigma * sigma;

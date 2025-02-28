@@ -15,40 +15,12 @@
 #include "core/ascii_ramp.h"
 #include "conversion/intensity_map.h"
 #include "conversion/image_to_braille.h"
+#include "conversion/image_to_ansi.h"
 #include "utilities/print_utf16_string.h"
 
-const AsciiRamp DEFAULT_RAMP = {
-    .characters = " .:-=+*#@&8B$@",
-    .length = 14
-};
-
-const AppConfig DEFAULT_CONFIG = {
-    .input_path = NULL,
-    .output_path = NULL,
-    .no_terminal_output = 0,
-    .width = 100,
-    .height = 0,
-    .alpha = 0,
-    .negative = 0,
-    .threshold = 0,
-    .threshold_value = 128,
-    .dither = 0,
-    .dither_threshold = 128,
-    .sobel_edge_detection = 0,
-    .sobel_edge_detection_threshold = 128,
-    .canny_edge_detection = 0,
-    .canny_edge_detection_sigma = 0.8,
-    .canny_edge_detection_high_threshold = 120,
-    .canny_edge_detection_low_threshold = 50,
-    .braille = 0,
-    .font_aspect_ratio = 0.45,
-    .verbose = 0,
-    .ramp = {0}
-};
 
 int main(int argc, char *argv[]) {
-    AppConfig config = DEFAULT_CONFIG;
-    config.ramp = DEFAULT_RAMP;
+    AppConfig config = get_default_config();
 
     if (parse_arguments(argc, argv, &config) != 0) {
         //print_usage(argv[0]);
@@ -87,7 +59,7 @@ int main(int argc, char *argv[]) {
     image_save_to_png_file(img, "2resized.png");
 
 
-    image_to_grayscale(img, config.alpha);
+    //image_to_grayscale(img, config.alpha);
     //debug
     image_save_to_png_file(img, "3gray.png");
 
@@ -138,7 +110,9 @@ int main(int argc, char *argv[]) {
         image_free(img);
         return EXIT_SUCCESS;
     } else {
-        char* output = intensity_map(img, &config.ramp);
+        //char* output = intensity_map(img, &config.ramp);
+        char* output = image_to_ansi(img, " ", (RGBColor){config.alpha, config.alpha, config.alpha});
+        //char* output = RGBA_image_to_ansi(img, " ", config.alpha);
         if (!output) {
             fprintf(stderr, "Failed to generate intensity map\n");
             image_free(img);

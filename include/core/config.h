@@ -27,6 +27,7 @@ typedef struct {
     AsciiRamp ramp;
 } AppConfig;
 
+AppConfig get_default_config();
 void print_usage(const char* program_name);
 int parse_arguments(int argc, char* argv[], AppConfig* config);
 int validate_config(AppConfig* config);
