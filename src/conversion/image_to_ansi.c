@@ -4,175 +4,49 @@
 #include <string.h>
 #include "conversion/image_to_ansi.h"
 
-char* image_to_ansi(Image* img, char* string, uint8_t background_brightness){
-    switch(img->type) {
-        case IMAGE_TYPE_GRAY: return grayscale_image_to_ansi(img, string);
-        case IMAGE_TYPE_RGB: return RGB_image_to_ansi(img, string);
-        case IMAGE_TYPE_RGBA: return RGBA_image_to_ansi(img, string, background_brightness);
-        default: fprintf(stderr, "Unsupported image type\n");
-    }
-}
-
-char* grayscale_image_to_ansi(Image* img, char* string){
+char* image_to_ansi(Image* img, char* tiling_string, RGBColor background_color){
     if (img == NULL) {
         fprintf(stderr, "Image is NULL\n");
         return NULL;
     }
-    if(img->type != IMAGE_TYPE_GRAY) {
-        fprintf(stderr, "Image is not grayscale\n");
-        return NULL;
-    }
 
-    const char ANSI_COLORED_CHAR[] = "\033[38;2;%03d;%03d;%03dm%c";
+    // ANSI escape code for colored character, uses 24-bit color, 38 for character color and 48 for background color
+    const char* format_string = "\033[48;2;%03d;%03d;%03dm%c";
 
-    const int string_length = strlen(string);
+    const int tiling_string_length = strlen(tiling_string);
     int index = 0;
 
-    char* output = malloc((img->width * img->height) * (strlen(ANSI_COLORED_CHAR) + 1) + img->height * 5 + 5);
+    // Calculate safe buffer size
+    // 25 characters per pixel (including escape codes), 6 characters for newline and reset, 10 characters for final reset and null terminator
+    size_t buffer_size = (img->width * img->height * 25) + (img->height * 6) + 5;
+    char* output = malloc(buffer_size);
     if (!output) {
         perror("Failed to allocate output buffer");
         return NULL;
     }
-    output[0] = '\0';
 
-    char* colored_char = malloc(20);
-    if (!colored_char) {
-        perror("Failed to allocate colored_char buffer");
-        free(output);
-        return NULL;
-    }
+    size_t pos = 0; // To track osition in output buffer
 
-    for (int y = 0; y < img->height; y++){
-        for(int x = 0; x < img->width; x++){
-            const uint8_t* pixel = image_pixel_at(img, x, y);
-            uint8_t brightness = pixel[0];
-
-            snprintf(colored_char, 21, ANSI_COLORED_CHAR, (int) brightness, (int) brightness, (int) brightness, string[index++]);
-            //printf("%s\n", colored_char);
-            strcat(output, colored_char);
-
-            if (index >= string_length){
-                index = 0;
+    for (int y = 0; y < img->height; y++) {
+        for(int x = 0; x < img->width; x++) {
+            const RGBColor color = get_rgb_color(img, x, y, &background_color);
+            
+            // Write color and character to output buffer
+            int written = snprintf(&output[pos], buffer_size - pos, format_string, color.r, color.g, color.b, tiling_string[index++ % tiling_string_length]);
+    
+            // Check for buffer overflow
+            if (written < 0 || written >= buffer_size - pos) {
+                fprintf(stderr, "Buffer overflow when writing to output\n");
+                free(output);
+                return NULL;
             }
+
+            pos += written;
         }
-        strcat(output, "\033[0m\n");
+        int written = snprintf(output + pos, buffer_size - pos, "\033[0m\n"); // Reset color and newline
+        pos += written;
     }
+    snprintf(output + pos, buffer_size - pos, "\033[0m");
 
-    strcat(output, "\033[0m");
-    
-    free(colored_char);
-    
-    return output;
-}
-
-char* RGB_image_to_ansi(Image* img, char* string){
-    if (img == NULL) {
-        fprintf(stderr, "Image is NULL\n");
-        return NULL;
-    }
-    if(img->type != IMAGE_TYPE_RGB) {
-        fprintf(stderr, "Image is not RGB\n");
-        return NULL;
-    }
-
-    const char ANSI_COLORED_CHAR[] = "\033[48;2;%03d;%03d;%03dm%c";
-
-    const int string_length = strlen(string);
-    int index = 0;
-
-    printf("image width: %d, imag height: %d\n", img->width, img->height);
-    char* output = malloc((img->width * img->height) * (strlen(ANSI_COLORED_CHAR) + 1) + img->height * 5 + 5);
-    if (!output) {
-        perror("Failed to allocate output buffer");
-        return NULL;
-    }
-    output[0] = '\0';
-
-    char* colored_char = malloc(20);
-    if (!colored_char) {
-        perror("Failed to allocate colored_char buffer");
-        free(output);
-        return NULL;
-    }
-
-    for (int y = 0; y < img->height; y++){
-        for(int x = 0; x < img->width; x++){
-            const uint8_t* pixel = image_pixel_at(img, x, y);
-            uint8_t red = pixel[0];
-            uint8_t green = pixel[1];
-            uint8_t blue = pixel[2];
-
-            snprintf(colored_char, 21, ANSI_COLORED_CHAR, (int) red, (int) green, (int) blue, string[index++]);
-            //colored_char[strlen(colored_char) + 1] = '\0';
-            //printf("%s\n", colored_char);
-            strcat(output, colored_char);
-
-            if (index >= string_length){
-                index = 0;
-            }
-        }
-        strcat(output, "\033[0m\n");
-    }
-
-    strcat(output, "\033[0m");
-    
-    free(colored_char);
-    
-    return output;
-}
-
-char* RGBA_image_to_ansi(Image* img, char* string, uint8_t background_brightness){
-    if (img == NULL) {
-        fprintf(stderr, "Image is NULL\n");
-        return NULL;
-    }
-    if(img->type != IMAGE_TYPE_RGBA) {
-        fprintf(stderr, "Image is not RGBA\n");
-        return NULL;
-    }
-
-    const char ANSI_COLORED_CHAR[] = "\033[48;2;%03d;%03d;%03dm%c";
-
-    printf("image width: %d, imag height: %d\n", img->width, img->height);
-    char* output = malloc((img->width * img->height) * (strlen(ANSI_COLORED_CHAR) + 1) + img->height * 5 + 5);
-    if (!output) {
-        perror("Failed to allocate output buffer");
-        return NULL;
-    }
-    output[0] = '\0';
-
-    char* colored_char = malloc(20);
-    if (!colored_char) {
-        perror("Failed to allocate colored_char buffer");
-        free(output);
-        return NULL;
-    }
-
-    const int string_length = strlen(string);
-    int index = 0;
-    for (int y = 0; y < img->height; y++){
-        for(int x = 0; x < img->width; x++){
-            const uint8_t* pixel = image_pixel_at(img, x, y);
-            uint8_t alpha = pixel[3];
-            uint8_t red = (int) pixel[0] * alpha / 255 + (int) background_brightness * (255 - alpha) / 255;
-            uint8_t green = (int) pixel[1] * alpha / 255 + (int) background_brightness * (255 - alpha) / 255;
-            uint8_t blue = (int) pixel[2] * alpha / 255 + (int) background_brightness * (255 - alpha) / 255;
-
-            snprintf(colored_char, 21, ANSI_COLORED_CHAR, (int) red, (int) green, (int) blue, string[index++]);
-            //colored_char[strlen(colored_char) + 1] = '\0';
-            //printf("%s\n", colored_char);
-            strcat(output, colored_char);
-
-            if (index >= string_length){
-                index = 0;
-            }
-        }
-        strcat(output, "\033[0m\n");
-    }
-
-    strcat(output, "\033[0m");
-    
-    free(colored_char);
-    
     return output;
 }

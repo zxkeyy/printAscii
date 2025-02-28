@@ -3,7 +3,7 @@
 
 #include "../core/image.h"
 
-char* image_to_ansi(Image* img, char* string, uint8_t background_brightness);
+char* image_to_ansi(Image* img, char* string, RGBColor background_color);
 
 char* grayscale_image_to_ansi(Image* img, char* string);
 char* RGB_image_to_ansi(Image* img, char* string);
