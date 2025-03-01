@@ -20,7 +20,8 @@ int16_t* image_to_braille(Image* img, int threshold){
         {6, 7}
     };
     
-    int16_t* output = malloc(((img->width / 2) * (img->height / 4) + img->height + 1) * sizeof(int16_t));
+    // Each braille character is 8 dots, so we need to divide the image into 2x4 blocks
+    int16_t* output = malloc((((img->width + 1)/ 2) * ((img->height + 3) / 4) + (img->height + 3) /4 + 1) * sizeof(int16_t));
     if (!output) {
         perror("Failed to allocate output buffer");
         return NULL;

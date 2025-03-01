@@ -59,9 +59,11 @@ int main(int argc, char *argv[]) {
     image_save_to_png_file(img, "2resized.png");
 
 
-    //image_to_grayscale(img, config.alpha);
-    //debug
-    image_save_to_png_file(img, "3gray.png");
+    if (!config.color){
+        image_to_grayscale(img, config.alpha);
+        //debug
+        image_save_to_png_file(img, "3gray.png");
+    }
 
     if(config.canny_edge_detection){
         canny_edge_detection(img, config.canny_edge_detection_sigma, config.canny_edge_detection_high_threshold, config.canny_edge_detection_low_threshold);
@@ -87,7 +89,36 @@ int main(int argc, char *argv[]) {
         image_save_to_png_file(img, "6dithered.png");
     }
 
-    if (config.braille) {
+    if (config.color) {
+        char* output = image_to_ansi(img, "#", (RGBColor){config.alpha, config.alpha, config.alpha});
+        //char* output = image_to_alpha_ansi(img, config.ramp);
+        if (!output) {
+            fprintf(stderr, "Failed to generate ANSI image\n");
+            image_free(img);
+            return EXIT_FAILURE;
+        }
+
+        if (!config.no_terminal_output) {
+            printf("%s", output);
+        }
+
+        if (config.output_path) {
+            FILE* file = fopen(config.output_path, "w");
+            if (!file) {
+                perror("Failed to open output file");
+                free(output);
+                image_free(img);
+                return EXIT_FAILURE;
+            }
+
+            fprintf(file, "%s", output);
+            fclose(file);
+        }
+
+        free(output);
+        image_free(img);
+        return EXIT_SUCCESS;
+    }else if (config.braille) {
         int16_t* output = image_to_braille(img, config.threshold_value);
         if (!config.no_terminal_output) {
             print_utf16_string(output);
@@ -110,9 +141,7 @@ int main(int argc, char *argv[]) {
         image_free(img);
         return EXIT_SUCCESS;
     } else {
-        //char* output = intensity_map(img, &config.ramp);
-        char* output = image_to_ansi(img, " ", (RGBColor){config.alpha, config.alpha, config.alpha});
-        //char* output = RGBA_image_to_ansi(img, " ", config.alpha);
+        char* output = intensity_map(img, &config.ramp);
         if (!output) {
             fprintf(stderr, "Failed to generate intensity map\n");
             image_free(img);
