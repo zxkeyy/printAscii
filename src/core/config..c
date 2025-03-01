@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
+#include <errno.h>
 #include "core/config.h"
 
 const AsciiRamp DEFAULT_RAMP = {
@@ -17,6 +18,7 @@ const AppConfig DEFAULT_CONFIG = {
     .height = 0,
     .alpha = 0,
     .negative = 0,
+    .color = 0,
     .threshold = 0,
     .threshold_value = 128,
     .dither = 0,
@@ -46,7 +48,8 @@ struct option long_options[] = {
     {"input", required_argument, NULL, 'i'},
     {"output", required_argument, NULL, 'o'},
     {"no-terminal-output", no_argument, NULL, 'q'},
-    {"ascii-gradient", required_argument, NULL, 'g'},   
+    {"ascii-gradient", required_argument, NULL, 'g'},
+    {"gradient-preset", required_argument, NULL, 'G'},
     {"width", required_argument, NULL, 'w'},
     {"height", required_argument, NULL, 'h'},
     {"alpha", required_argument, NULL, 'a'},
@@ -54,10 +57,15 @@ struct option long_options[] = {
     {"negative", no_argument, NULL, 'n'},
     {"dither", optional_argument, NULL, 'd'},
     {"sobel-edge-detection", optional_argument, NULL, 's'},
-    {"canny-edge-detection", optional_argument, NULL, 'c'},
+    {"canny-edge-detection", optional_argument, NULL, 'C'},
     {"braille", no_argument, NULL, 'b'},
-    {"font-aspect-ratio", required_argument, NULL, 0},
+    {"font-aspect-ratio", required_argument, NULL, 'r'},
+    {"color", no_argument, NULL, 'c'},
+    {"preview", no_argument, NULL, 'p'},
     {"verbose", no_argument, NULL, 'v'},
+    {"version", no_argument, NULL, 'V'},
+    {"config", required_argument, NULL, 1},
+    {"save-config", required_argument, NULL, 2},
     {"help", no_argument, NULL, '?'},
     {NULL, 0, NULL, 0}
 };
@@ -107,77 +115,225 @@ void print_usage(const char* program_name) {
     printf("  %s -i input.jpg -b -n                # Braille with inverted colors\n", program_name);
 }
 
+int parse_numeric_arg(const char* arg, int min, int max, int* result) {
+    if (!arg || !result) {
+        return -1;
+    }
+    
+    char* endptr;
+    errno = 0;
+    long val = strtol(arg, &endptr, 10);
+    
+    if (errno != 0 || *endptr != '\0' || val < min || val > max) {
+        return -1;
+    }
+    
+    *result = (int)val;
+    return 0;
+}
+
+int parse_float_arg(const char* arg, float min, float max, float* result) {
+    if (!arg || !result) {
+        return -1;
+    }
+    
+    char* endptr;
+    errno = 0;
+    float val = strtof(arg, &endptr);
+    
+    if (errno != 0 || *endptr != '\0' || val < min || val > max) {
+        return -1;
+    }
+    
+    *result = val;
+    return 0;
+}
+
 int parse_arguments(int argc, char* argv[], AppConfig* config){
+    if (!config || argc < 2) {
+        return -1;
+    }
+    
     int opt;
-    int optind = 0;
-    //To calculate if user wants to keep aspect ratio
+    int option_index = 0;
     int width_set = 0;
     int height_set = 0;
-    while ((opt = getopt_long(argc, argv, "i:o:w:h:g:a:t::d::s::c::nbqrv?", long_options, &optind)) != -1) {
+    const char* short_options = "i:o:w:h:g:G:a:t::d::s::c::nbCpr:vV?";
+    
+    // Reset getopt state in case it was used elsewhere
+    optind = 0;
+    
+    while ((opt = getopt_long(argc, argv, short_options, long_options, &option_index)) != -1) {
         switch (opt) {
-            case 'i': config->input_path = optarg; break;
-            case 'o': config->output_path = optarg; break;
-            case 'q': config->no_terminal_output = 1; break;
-            case 'g': config->ramp.characters = optarg; config->ramp.length = strlen(optarg); break;
-            case 'w': config->width = atoi(optarg); width_set = 1; break;
-            case 'h': config->height = atoi(optarg); height_set = 1; break;
-            case 'a': config->alpha = atoi(optarg); break;
-            case 'n': config->negative = 1; break;
-            case 't': 
-                config->threshold = 1; 
-                if (optarg)
-                    config->threshold_value = atoi(optarg);
+            case 'i':
+                config->input_path = optarg;
                 break;
-            case 'd': 
-                config->dither = 1; 
-                if (optarg)
-                    config->dither_threshold = atoi(optarg);
+                
+            case 'o':
+                config->output_path = optarg;
                 break;
-            case 's': 
-                config->sobel_edge_detection = 1; 
-                if (optarg)
-                    config->sobel_edge_detection_threshold = atoi(optarg);
+                
+            case 'q':
+                config->no_terminal_output = 1;
                 break;
+                
+            case 'g':
+                if (optarg && strlen(optarg) > 0) {
+                    config->ramp.characters = optarg;
+                    config->ramp.length = strlen(optarg);
+                } else {
+                    fprintf(stderr, "Error: ASCII gradient cannot be empty\n");
+                    return -1;
+                }
+                break;
+                
+            case 'w':
+                if (parse_numeric_arg(optarg, -1, 10000, &config->width) != 0) {
+                    fprintf(stderr, "Error: Invalid width value '%s'\n", optarg);
+                    return -1;
+                }
+                width_set = 1;
+                break;
+                
+            case 'h':
+                if (parse_numeric_arg(optarg, -1, 10000, &config->height) != 0) {
+                    fprintf(stderr, "Error: Invalid height value '%s'\n", optarg);
+                    return -1;
+                }
+                height_set = 1;
+                break;
+                
+            case 'a':
+                if (parse_numeric_arg(optarg, 0, 255, &config->alpha) != 0) {
+                    fprintf(stderr, "Error: Invalid alpha value '%s'\n", optarg);
+                    return -1;
+                }
+                break;
+                
+            case 'n':
+                config->negative = 1;
+                break;
+
             case 'c':
-                config->canny_edge_detection = 1;
-                if(optarg){
-                    int params = 0;
-                    char *temp = optarg;
-                    while (*temp)
-                    {
-                        if(*temp == ',') params++;
-                        temp++;
+                config->color = 1;
+                break;
+
+            case 't':
+                config->threshold = 1;
+                if (optarg) {
+                    if (parse_numeric_arg(optarg, 0, 255, &config->threshold_value) != 0) {
+                        fprintf(stderr, "Error: Invalid threshold value '%s'\n", optarg);
+                        return -1;
                     }
-                    params++;
-                    if (params >= 3) {
-                        sscanf(optarg, "%f,%d,%d", &config->canny_edge_detection_sigma, &config->canny_edge_detection_high_threshold, &config->canny_edge_detection_low_threshold);
-                    } else if (params == 2) {
-                        sscanf(optarg, "%f,%d", &config->canny_edge_detection_sigma, &config->canny_edge_detection_high_threshold);
-                    } else if (params == 1) {
-                        sscanf(optarg, "%f", &config->canny_edge_detection_sigma);
-                    } 
                 }
                 break;
-            case 'b': config->braille = 1; break;
-            case 'v': config->verbose = 1; break;
-            case '?': print_usage(argv[0]); return 1;
-            case 0: 
-                if (strcmp(long_options[optind].name, "font-aspect-ratio") == 0) {
-                    config->font_aspect_ratio = atof(optarg);
+                
+            case 'd':
+                config->dither = 1;
+                if (optarg) {
+                    if (parse_numeric_arg(optarg, 0, 255, &config->dither_threshold) != 0) {
+                        fprintf(stderr, "Error: Invalid dither threshold value '%s'\n", optarg);
+                        return -1;
+                    }
                 }
                 break;
+                
+            case 's':
+                config->sobel_edge_detection = 1;
+                if (optarg) {
+                    if (parse_numeric_arg(optarg, 0, 255, &config->sobel_edge_detection_threshold) != 0) {
+                        fprintf(stderr, "Error: Invalid Sobel threshold value '%s'\n", optarg);
+                        return -1;
+                    }
+                }
+                break;
+                
+            case 'C':
+                config->canny_edge_detection = 1;
+                if (optarg) {
+                    // Parse comma-separated Canny parameters
+                    char* copy = strdup(optarg);
+                    if (!copy) {
+                        fprintf(stderr, "Error: Memory allocation failed\n");
+                        return -1;
+                    }
+                    
+                    char* token = strtok(copy, ",");
+                    if (token) {
+                        if (parse_float_arg(token, 0.1, 10.0, &config->canny_edge_detection_sigma) != 0) {
+                            fprintf(stderr, "Error: Invalid Canny sigma value '%s'\n", token);
+                            free(copy);
+                            return -1;
+                        }
+                        
+                        token = strtok(NULL, ",");
+                        if (token) {
+                            int high_threshold;
+                            if (parse_numeric_arg(token, 0, 255, &high_threshold) != 0) {
+                                fprintf(stderr, "Error: Invalid Canny high threshold value '%s'\n", token);
+                                free(copy);
+                                return -1;
+                            }
+                            config->canny_edge_detection_high_threshold = high_threshold;
+                            
+                            token = strtok(NULL, ",");
+                            if (token) {
+                                int low_threshold;
+                                if (parse_numeric_arg(token, 0, 255, &low_threshold) != 0) {
+                                    fprintf(stderr, "Error: Invalid Canny low threshold value '%s'\n", token);
+                                    free(copy);
+                                    return -1;
+                                }
+                                config->canny_edge_detection_low_threshold = low_threshold;
+                            }
+                        }
+                    }
+                    
+                    free(copy);
+                }
+                break;
+                
+            case 'b':
+                config->braille = 1;
+                break;
+                
+            case 'r':
+                {
+                    float ratio;
+                    if (parse_float_arg(optarg, 0.01, 10.0, &ratio) != 0) {
+                        fprintf(stderr, "Error: Invalid font aspect ratio '%s'\n", optarg);
+                        return -1;
+                    }
+                    config->font_aspect_ratio = ratio;
+                }
+                break;
+                
+            case 'v':
+                config->verbose = 1;
+                break;
+                
+            case 'V':
+                printf("printAscii v2.0.4\n");
+                return 1; // Normal exit
+                
+            case '?':
+                print_usage(argv[0]);
+                return 1; // Normal exit
+                
             default:
+                fprintf(stderr, "Error: Unknown option\n");
                 return -1;
         }
     }
-
-    if(width_set && !height_set){
+    
+    // Handle aspect ratio calculations
+    if (width_set && !height_set) {
         config->height = 0; // 0 means keep aspect ratio
     }
-    if(!width_set && height_set){
+    if (!width_set && height_set) {
         config->width = 0; // 0 means keep aspect ratio
     }
-
+    
     return 0;
 }
 

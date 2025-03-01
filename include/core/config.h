@@ -11,6 +11,7 @@ typedef struct {
     int height;
     int alpha;
     int negative;
+    int color;
     int threshold;
     int threshold_value;
     int dither;
