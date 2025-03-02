@@ -64,6 +64,7 @@ int main(int argc, char *argv[]) {
         //debug
         image_save_to_png_file(img, "3gray.png");
     }
+    // image_to_grayscale(img, config.alpha);
 
     if(config.canny_edge_detection){
         canny_edge_detection(img, config.canny_edge_detection_sigma, config.canny_edge_detection_high_threshold, config.canny_edge_detection_low_threshold);
@@ -90,8 +91,8 @@ int main(int argc, char *argv[]) {
     }
 
     if (config.color) {
-        char* output = image_to_ansi(img, config.tiling_text, (RGBColor){config.alpha, config.alpha, config.alpha}, config.color_background);
-        //char* output = image_to_alpha_ansi(img, config.ramp, config.color_background);
+        //char* output = image_to_ansi(img, config.tiling_text, (RGBColor){config.alpha, config.alpha, config.alpha}, config.color_background);
+        char* output = image_to_alpha_ansi(img, config.tiling_text, config.ramp, config.color_background_mode);
         if (!output) {
             fprintf(stderr, "Failed to generate ANSI image\n");
             image_free(img);

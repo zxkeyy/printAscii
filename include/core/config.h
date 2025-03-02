@@ -12,7 +12,7 @@ typedef struct {
     int alpha;
     int negative;
     int color;
-    int color_background;
+    int color_background_mode;
     char* tiling_text;
     int threshold;
     int threshold_value;

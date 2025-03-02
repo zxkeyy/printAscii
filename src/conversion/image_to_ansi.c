@@ -52,7 +52,7 @@ char* image_to_ansi(Image* img, char* tiling_string, RGBColor background_color, 
     return output;
 }
 
-char* image_to_alpha_ansi(Image* img, AsciiRamp ramp, int background){
+char* image_to_alpha_ansi(Image* img, char* tiling_string, AsciiRamp ramp, int background){
     if (img == NULL) {
         fprintf(stderr, "Image is NULL\n");
         return NULL;
@@ -60,6 +60,9 @@ char* image_to_alpha_ansi(Image* img, AsciiRamp ramp, int background){
 
     // ANSI escape code for colored character, uses 24-bit color, 38 for character color and 48 for background color
     const char* format_string = background ? "\033[48;2;%03d;%03d;%03dm%c" : "\033[38;2;%03d;%03d;%03dm%c";
+
+    const int tiling_string_length = strlen(tiling_string);
+    int index = 0;
 
     // Calculate safe buffer size
     // 25 characters per pixel (including escape codes), 6 characters for newline and reset, 10 characters for final reset and null terminator
@@ -80,8 +83,12 @@ char* image_to_alpha_ansi(Image* img, AsciiRamp ramp, int background){
             if(color.a == 0){
                 // No need to use color for transparent pixels, adds a space instead
                 written = snprintf(&output[pos], buffer_size - pos, "\033[0m ");
-            }else{
+            }else if(color.a == 255){
                 // Write color and character to output buffer
+                // Use tiling string for opaque pixels
+                written = snprintf(&output[pos], buffer_size - pos, format_string, color.r, color.g, color.b, tiling_string[index++ % tiling_string_length]);
+            }else{
+                // Use ramp for semi-transparent pixels
                 written = snprintf(&output[pos], buffer_size - pos, format_string, color.r, color.g, color.b, ramp.characters[color.a * (ramp.length-1) / 255]);
             }
             

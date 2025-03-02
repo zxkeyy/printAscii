@@ -19,7 +19,7 @@ const AppConfig DEFAULT_CONFIG = {
     .alpha = 0,
     .negative = 0,
     .color = 0,
-    .color_background = 0,
+    .color_background_mode = 0,
     .tiling_text = "0",
     .threshold = 0,
     .threshold_value = 128,
@@ -34,7 +34,7 @@ const AppConfig DEFAULT_CONFIG = {
     .braille = 0,
     .font_aspect_ratio = 0.45,
     .verbose = 0,
-    .ramp = {0} // Initialize all to zero and set it in get function, because C ¯\_(ツ)_/¯.
+    .ramp = {0} // Initialize all to zero and set it later in get function, because C ¯\_(ツ)_/¯.
 };
 
 AppConfig get_default_config() {
@@ -63,8 +63,8 @@ struct option long_options[] = {
     {"braille", no_argument, NULL, 'b'},
     {"font-aspect-ratio", required_argument, NULL, 'r'},
     {"color", no_argument, NULL, 'c'},
-    {"color_background", no_argument, NULL, 'B'},
-    {"tiling_text", required_argument, NULL, 'T'},
+    {"color-background", no_argument, NULL, 'B'},
+    {"tiling-text", required_argument, NULL, 'T'},
     {"preview", no_argument, NULL, 'p'},
     {"verbose", no_argument, NULL, 'v'},
     {"version", no_argument, NULL, 'V'},
@@ -226,7 +226,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 break;
 
             case 'B':
-                config->color_background = 1;
+                config->color_background_mode = 1;
                 break;
             
             case 'T':
