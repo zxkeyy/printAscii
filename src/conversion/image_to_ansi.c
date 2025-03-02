@@ -5,14 +5,14 @@
 #include "conversion/image_to_ansi.h"
 #include "core/ascii_ramp.h"
 
-char* image_to_ansi(Image* img, char* tiling_string, RGBColor background_color){
+char* image_to_ansi(Image* img, char* tiling_string, RGBColor background_color, int background){
     if (img == NULL) {
         fprintf(stderr, "Image is NULL\n");
         return NULL;
     }
 
     // ANSI escape code for colored character, uses 24-bit color, 38 for character color and 48 for background color
-    const char* format_string = "\033[38;2;%03d;%03d;%03dm%c";
+    const char* format_string = background ? "\033[48;2;%03d;%03d;%03dm%c" : "\033[38;2;%03d;%03d;%03dm%c";
 
     const int tiling_string_length = strlen(tiling_string);
     int index = 0;
@@ -52,14 +52,14 @@ char* image_to_ansi(Image* img, char* tiling_string, RGBColor background_color){
     return output;
 }
 
-char* image_to_alpha_ansi(Image* img, AsciiRamp ramp){
+char* image_to_alpha_ansi(Image* img, AsciiRamp ramp, int background){
     if (img == NULL) {
         fprintf(stderr, "Image is NULL\n");
         return NULL;
     }
 
     // ANSI escape code for colored character, uses 24-bit color, 38 for character color and 48 for background color
-    const char* format_string = "\033[38;2;%03d;%03d;%03dm%c";
+    const char* format_string = background ? "\033[48;2;%03d;%03d;%03dm%c" : "\033[38;2;%03d;%03d;%03dm%c";
 
     // Calculate safe buffer size
     // 25 characters per pixel (including escape codes), 6 characters for newline and reset, 10 characters for final reset and null terminator
@@ -76,7 +76,9 @@ char* image_to_alpha_ansi(Image* img, AsciiRamp ramp){
         for(int x = 0; x < img->width; x++) {
             const RGBAColor color = get_rgba_color(img, x, y);
             int written;
+
             if(color.a == 0){
+                // No need to use color for transparent pixels, adds a space instead
                 written = snprintf(&output[pos], buffer_size - pos, "\033[0m ");
             }else{
                 // Write color and character to output buffer

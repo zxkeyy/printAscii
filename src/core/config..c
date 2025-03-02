@@ -19,6 +19,8 @@ const AppConfig DEFAULT_CONFIG = {
     .alpha = 0,
     .negative = 0,
     .color = 0,
+    .color_background = 0,
+    .tiling_text = "0",
     .threshold = 0,
     .threshold_value = 128,
     .dither = 0,
@@ -32,7 +34,7 @@ const AppConfig DEFAULT_CONFIG = {
     .braille = 0,
     .font_aspect_ratio = 0.45,
     .verbose = 0,
-    .ramp = {0} // Initialize all to zero because C. ¯\_(ツ)_/¯
+    .ramp = {0} // Initialize all to zero and set it in get function, because C ¯\_(ツ)_/¯.
 };
 
 AppConfig get_default_config() {
@@ -61,6 +63,8 @@ struct option long_options[] = {
     {"braille", no_argument, NULL, 'b'},
     {"font-aspect-ratio", required_argument, NULL, 'r'},
     {"color", no_argument, NULL, 'c'},
+    {"color_background", no_argument, NULL, 'B'},
+    {"tiling_text", required_argument, NULL, 'T'},
     {"preview", no_argument, NULL, 'p'},
     {"verbose", no_argument, NULL, 'v'},
     {"version", no_argument, NULL, 'V'},
@@ -87,9 +91,12 @@ void print_usage(const char* program_name) {
     printf("  -h, --height <n>           Output height in characters\n");
     printf("                             if only width is specified, height will be calculated to keep image aspect ratio\n");
     printf("                             Use -1 to keep source image height\n");
+    printf("  -c, --color                Use ANSI colors for output\n");
+    printf("  -B, --color-background     Use ANSI colors for background color output\n");
+    printf("  -T, --tiling_text <str>    A string that will be used to tile the output if color is used (default: '0')\n");
     printf("  -b, --braille              Convert image to braille patterns\n");
-    printf("  -r, --font-aspect-ratio <n> Font width to height ratio (default: 0.45)\n\n");
-    printf("                             Change this if the output aspect ratio is incorrect\n");
+    printf("  -r, --font-aspect-ratio <f> Font width to height ratio (default: 0.45)\n");
+    printf("                             Change this if the output aspect ratio is incorrect\n\n");
     
     printf("Processing Options:\n");
     printf("  -a, --alpha <0-255>        Background brightness for transparency (default: 0)\n");
@@ -99,7 +106,7 @@ void print_usage(const char* program_name) {
     
     printf("Edge Detection:\n");
     printf("  -s, --sobel <0-255>        Sobel edge detection threshold (default: 128)\n");
-    printf("  -c, --canny <s,h,l>        Canny edge detection with parameters:\n");
+    printf("  -C, --canny <s,h,l>        Canny edge detection with parameters:\n");
     printf("                             s=sigma (default: 0.8)\n");
     printf("                             h=high threshold (default: 120)\n");
     printf("                             l=low threshold (default: 50)\n\n");
@@ -158,7 +165,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     int option_index = 0;
     int width_set = 0;
     int height_set = 0;
-    const char* short_options = "i:o:w:h:g:G:a:t::d::s::c::nbCpr:vV?";
+    const char* short_options = "i:o:w:h:g:G:a:t::d::s::C::BT:nbcpr:vV?";
     
     // Reset getopt state in case it was used elsewhere
     optind = 0;
@@ -216,6 +223,19 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
 
             case 'c':
                 config->color = 1;
+                break;
+
+            case 'B':
+                config->color_background = 1;
+                break;
+            
+            case 'T':
+                if (optarg && strlen(optarg) > 0) {
+                    config->tiling_text = optarg;
+                } else {
+                    fprintf(stderr, "Error: Tiling text cannot be empty\n");
+                    return -1;
+                }
                 break;
 
             case 't':

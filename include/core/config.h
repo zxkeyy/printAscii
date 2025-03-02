@@ -12,6 +12,8 @@ typedef struct {
     int alpha;
     int negative;
     int color;
+    int color_background;
+    char* tiling_text;
     int threshold;
     int threshold_value;
     int dither;

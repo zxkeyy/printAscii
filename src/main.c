@@ -90,8 +90,8 @@ int main(int argc, char *argv[]) {
     }
 
     if (config.color) {
-        char* output = image_to_ansi(img, "#", (RGBColor){config.alpha, config.alpha, config.alpha});
-        //char* output = image_to_alpha_ansi(img, config.ramp);
+        char* output = image_to_ansi(img, config.tiling_text, (RGBColor){config.alpha, config.alpha, config.alpha}, config.color_background);
+        //char* output = image_to_alpha_ansi(img, config.ramp, config.color_background);
         if (!output) {
             fprintf(stderr, "Failed to generate ANSI image\n");
             image_free(img);
