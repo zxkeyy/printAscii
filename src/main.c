@@ -93,8 +93,8 @@ int main(int argc, char *argv[]) {
 
     if (config.color) {
         //char* output = image_to_ansi(img, config.tiling_text, (RGBColor){config.alpha, config.alpha, config.alpha}, config.color_background_mode);
-        //char* output = image_to_alpha_ansi(img, config.tiling_text, config.ramp, config.color_background_mode);
-        char* output = image_to_html(img, config.tiling_text, (RGBColor){config.alpha, config.alpha, config.alpha}, config.color_background_mode);
+        char* output = image_to_alpha_ansi(img, config.tiling_text, config.ramp, config.color_background_mode);
+        //char* output = image_to_html(img, config.tiling_text, (RGBColor){config.alpha, config.alpha, config.alpha}, config.color_background_mode);
         if (!output) {
             fprintf(stderr, "Failed to generate ANSI image\n");
             image_free(img);

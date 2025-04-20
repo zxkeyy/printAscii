@@ -187,7 +187,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
             case 'g':
                 if (optarg && strlen(optarg) > 0) {
                     config->ramp.characters = optarg;
-                    config->ramp.length = strlen(optarg);
+                    config->ramp.length = ascii_ramp_total_chars(optarg);
                 } else {
                     fprintf(stderr, "Error: ASCII gradient cannot be empty\n");
                     return -1;

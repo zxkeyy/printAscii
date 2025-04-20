@@ -89,7 +89,26 @@ char* image_to_alpha_ansi(Image* img, char* tiling_string, AsciiRamp ramp, int b
                 written = snprintf(&output[pos], buffer_size - pos, format_string, color.r, color.g, color.b, tiling_string[index++ % tiling_string_length]);
             }else{
                 // Use ramp for semi-transparent pixels
-                written = snprintf(&output[pos], buffer_size - pos, format_string, color.r, color.g, color.b, ramp.characters[color.a * (ramp.length-1) / 255]);
+                // Get position and length of UTF-8 character in the ramp
+                int ramp_index = color.a * (ramp.length-1) / 255;
+                int char_pos = 0;
+                for (int i = 0; i < ramp_index; i++) {
+                    int char_len = ascii_ramp_char_length(ramp.characters, i);
+                    char_pos += char_len;
+                }
+                
+                // Get current character as a multi-byte sequence
+                char utf8_char[MAX_UTF8_CHAR_SIZE] = {0};
+                int char_len = ascii_ramp_char_length(ramp.characters, ramp_index);
+                memcpy(utf8_char, &ramp.characters[char_pos], char_len);
+                
+                // Write color and UTF-8 character to output buffer
+                written = snprintf(&output[pos], buffer_size - pos, format_string, color.r, color.g, color.b, utf8_char[0]);
+                // If character is multi-byte, we need to append the rest of the bytes manually
+                if (char_len > 1) {
+                    memcpy(&output[pos + written], &utf8_char[1], char_len - 1);
+                    written += (char_len - 1);
+                }
             }
             
     
