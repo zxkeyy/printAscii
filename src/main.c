@@ -16,6 +16,7 @@
 #include "conversion/intensity_map.h"
 #include "conversion/image_to_braille.h"
 #include "conversion/image_to_ansi.h"
+#include "conversion/image_to_html.h"
 #include "utilities/print_utf16_string.h"
 
 
@@ -91,8 +92,9 @@ int main(int argc, char *argv[]) {
     }
 
     if (config.color) {
-        //char* output = image_to_ansi(img, config.tiling_text, (RGBColor){config.alpha, config.alpha, config.alpha}, config.color_background);
-        char* output = image_to_alpha_ansi(img, config.tiling_text, config.ramp, config.color_background_mode);
+        //char* output = image_to_ansi(img, config.tiling_text, (RGBColor){config.alpha, config.alpha, config.alpha}, config.color_background_mode);
+        //char* output = image_to_alpha_ansi(img, config.tiling_text, config.ramp, config.color_background_mode);
+        char* output = image_to_html(img, config.tiling_text, (RGBColor){config.alpha, config.alpha, config.alpha}, config.color_background_mode);
         if (!output) {
             fprintf(stderr, "Failed to generate ANSI image\n");
             image_free(img);
@@ -120,9 +122,15 @@ int main(int argc, char *argv[]) {
         image_free(img);
         return EXIT_SUCCESS;
     }else if (config.braille) {
-        int16_t* output = image_to_braille(img, config.threshold_value);
+        char* output = image_to_braille(img, config.threshold_value);
+        if (!output) {
+            fprintf(stderr, "Failed to generate braille image\n");
+            image_free(img);
+            return EXIT_FAILURE;
+        }
+
         if (!config.no_terminal_output) {
-            print_utf16_string(output);
+            printf("%s", output);
         }
 
         if (config.output_path) {
@@ -134,7 +142,7 @@ int main(int argc, char *argv[]) {
                 return EXIT_FAILURE;
             }
 
-            print_utf16_string_to_file(output, config.output_path);
+            fprintf(file, "%s", output);
             fclose(file);
         }
 
