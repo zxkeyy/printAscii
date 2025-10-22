@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 #include "core/ascii_ramp.h"
 
@@ -31,7 +32,7 @@ int ascii_ramp_char_length(const char* utf8_str, int index) {
             // 4-byte character (11110xxx)
             byte_pos += 4;
         } else {
-            // Invalid UTF-8 encoding, treat as 1 byte
+            // Invalid UTF-8 encoding, treat as 1 byte and move on
             byte_pos += 1;
         }
         
@@ -53,7 +54,7 @@ int ascii_ramp_char_length(const char* utf8_str, int index) {
 
 // Count total number of characters in a UTF-8 string
 int ascii_ramp_total_chars(const char* utf8_str) {
-    if (!utf8_str) return 0;
+    if (!utf8_str || utf8_str[0] == '\0') return 0;
     
     int count = 0;
     int pos = 0;
@@ -66,15 +67,31 @@ int ascii_ramp_total_chars(const char* utf8_str) {
             pos += 1;
         } else if ((c & 0xE0) == 0xC0) {
             // 2-byte character (110xxxxx)
+            if (utf8_str[pos+1] == '\0') {
+                // Truncated UTF-8 sequence
+                fprintf(stderr, "Warning: Truncated UTF-8 sequence at position %d\n", pos);
+                break;
+            }
             pos += 2;
         } else if ((c & 0xF0) == 0xE0) {
             // 3-byte character (1110xxxx)
+            if (utf8_str[pos+1] == '\0' || utf8_str[pos+2] == '\0') {
+                // Truncated UTF-8 sequence
+                fprintf(stderr, "Warning: Truncated UTF-8 sequence at position %d\n", pos);
+                break;
+            }
             pos += 3;
         } else if ((c & 0xF8) == 0xF0) {
             // 4-byte character (11110xxx)
+            if (utf8_str[pos+1] == '\0' || utf8_str[pos+2] == '\0' || utf8_str[pos+3] == '\0') {
+                // Truncated UTF-8 sequence
+                fprintf(stderr, "Warning: Truncated UTF-8 sequence at position %d\n", pos);
+                break;
+            }
             pos += 4;
         } else {
             // Invalid UTF-8 encoding, treat as 1 byte
+            fprintf(stderr, "Warning: Invalid UTF-8 sequence at position %d (0x%02X)\n", pos, c);
             pos += 1;
         }
         
