@@ -12,8 +12,12 @@
 int main(int argc, char *argv[]) {
     AppConfig config = get_default_config();
 
-    if (parse_arguments(argc, argv, &config) != 0) {
+    int parse_status = parse_arguments(argc, argv, &config);
+    if (parse_status < 0) {
         return EXIT_FAILURE;
+    }
+    if (parse_status > 0) {
+        return EXIT_SUCCESS;
     }
 
     if (validate_config(&config) != 0) {

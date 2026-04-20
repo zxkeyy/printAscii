@@ -51,25 +51,28 @@ struct option long_options[] = {
     {"output", required_argument, NULL, 'o'},
     {"no-terminal-output", no_argument, NULL, 'q'},
     {"ascii-gradient", required_argument, NULL, 'g'},
-    {"gradient-preset", required_argument, NULL, 'G'},
+    {"mode", required_argument, NULL, 'm'},
     {"width", required_argument, NULL, 'w'},
     {"height", required_argument, NULL, 'h'},
     {"alpha", required_argument, NULL, 'a'},
-    {"threshold", optional_argument, NULL, 't'},
+    {"threshold", required_argument, NULL, 't'},
+    {"invert", no_argument, NULL, 'n'},
     {"negative", no_argument, NULL, 'n'},
-    {"dither", optional_argument, NULL, 'd'},
-    {"sobel-edge-detection", optional_argument, NULL, 's'},
-    {"canny-edge-detection", optional_argument, NULL, 'C'},
-    {"braille", no_argument, NULL, 'b'},
+    {"dither", required_argument, NULL, 'd'},
+    {"edge", required_argument, NULL, 'e'},
+    {"edge-threshold", required_argument, NULL, 3},
+    {"canny-sigma", required_argument, NULL, 4},
+    {"canny-high", required_argument, NULL, 5},
+    {"canny-low", required_argument, NULL, 6},
     {"font-aspect-ratio", required_argument, NULL, 'r'},
     {"color", no_argument, NULL, 'c'},
     {"color-background", no_argument, NULL, 'B'},
+    {"braille", no_argument, NULL, 'b'},
+    {"sobel-edge-detection", optional_argument, NULL, 's'},
+    {"canny-edge-detection", optional_argument, NULL, 'C'},
     {"tiling-text", required_argument, NULL, 'T'},
-    {"preview", no_argument, NULL, 'p'},
     {"verbose", no_argument, NULL, 'v'},
     {"version", no_argument, NULL, 'V'},
-    {"config", required_argument, NULL, 1},
-    {"save-config", required_argument, NULL, 2},
     {"help", no_argument, NULL, '?'},
     {NULL, 0, NULL, 0}
 };
@@ -85,31 +88,29 @@ void print_usage(const char* program_name) {
     
     printf("Display Options:\n");
     printf("  -g, --ascii-gradient <str> ASCII gradient (default: ' .:-=+*#@&8B$@')\n");
+    printf("  -m, --mode <type>          Output mode: ascii, braille, ansi, ansi-bg (default: ascii)\n");
     printf("  -w, --width <n>            Output width in characters (default: 100)\n");
     printf("                             if only height is specified, width will be calculated to keep image aspect ratio\n");
     printf("                             Use -1 to keep source image width\n");
     printf("  -h, --height <n>           Output height in characters\n");
     printf("                             if only width is specified, height will be calculated to keep image aspect ratio\n");
     printf("                             Use -1 to keep source image height\n");
-    printf("  -c, --color                Use ANSI colors for output\n");
-    printf("  -B, --color-background     Use ANSI colors for background color output\n");
     printf("  -T, --tiling_text <str>    A string that will be used to tile the output if color is used (default: '0')\n");
-    printf("  -b, --braille              Convert image to braille patterns\n");
     printf("  -r, --font-aspect-ratio <f> Font width to height ratio (default: 0.45)\n");
     printf("                             Change this if the output aspect ratio is incorrect\n\n");
     
     printf("Processing Options:\n");
     printf("  -a, --alpha <0-255>        Background brightness for transparency (default: 0)\n");
     printf("  -t, --threshold <0-255>    Threshold for black/white output (default: 128)\n");
-    printf("  -n, --negative             Invert colors\n");
+    printf("  -n, --invert               Invert colors\n");
     printf("  -d, --dither <0-255>       Apply Floyd-Steinberg dithering (default: 128)\n\n");
     
     printf("Edge Detection:\n");
-    printf("  -s, --sobel <0-255>        Sobel edge detection threshold (default: 128)\n");
-    printf("  -C, --canny <s,h,l>        Canny edge detection with parameters:\n");
-    printf("                             s=sigma (default: 0.8)\n");
-    printf("                             h=high threshold (default: 120)\n");
-    printf("                             l=low threshold (default: 50)\n\n");
+    printf("  -e, --edge <type>          Edge mode: none, sobel, canny (default: none)\n");
+    printf("      --edge-threshold <n>   Sobel edge threshold (default: 128)\n");
+    printf("      --canny-sigma <f>      Canny sigma (default: 0.8)\n");
+    printf("      --canny-high <n>       Canny high threshold (default: 120)\n");
+    printf("      --canny-low <n>        Canny low threshold (default: 50)\n\n");
     
     printf("General Options:\n");
     printf("  -v, --verbose              Display processing information\n");
@@ -119,7 +120,8 @@ void print_usage(const char* program_name) {
     printf("Examples:\n");
     printf("  %s -i input.jpg                      # Basic conversion\n", program_name);
     printf("  %s -i input.png -o output.txt -w 80  # Custom width output to file\n", program_name);
-    printf("  %s -i input.jpg -b -n                # Braille with inverted colors\n", program_name);
+    printf("  %s -i input.jpg --mode braille --invert  # Braille with inverted colors\n", program_name);
+    printf("  %s -i input.jpg --mode ansi --edge canny --canny-sigma 1.2 --canny-high 140 --canny-low 60\n", program_name);
 }
 
 int parse_numeric_arg(const char* arg, int min, int max, int* result) {
@@ -160,12 +162,33 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     if (!config || argc < 2) {
         return -1;
     }
+
+    enum {
+        OUTPUT_MODE_UNSET = 0,
+        OUTPUT_MODE_ASCII,
+        OUTPUT_MODE_BRAILLE,
+        OUTPUT_MODE_ANSI,
+        OUTPUT_MODE_ANSI_BG
+    } selected_output_mode = OUTPUT_MODE_UNSET;
+
+    enum {
+        EDGE_MODE_UNSET = 0,
+        EDGE_MODE_NONE,
+        EDGE_MODE_SOBEL,
+        EDGE_MODE_CANNY
+    } selected_edge_mode = EDGE_MODE_UNSET;
     
     int opt;
     int option_index = 0;
     int width_set = 0;
     int height_set = 0;
-    const char* short_options = "i:o:w:h:g:G:a:t::d::s::C::BT:nbcpr:vV?";
+    int legacy_output_flags_used = 0;
+    int legacy_edge_flags_used = 0;
+    int edge_threshold_set = 0;
+    int canny_sigma_set = 0;
+    int canny_high_set = 0;
+    int canny_low_set = 0;
+    const char* short_options = "i:o:w:h:g:m:a:t:d:e:T:nr:qbcBs::C::vV?";
     
     // Reset getopt state in case it was used elsewhere
     optind = 0;
@@ -190,6 +213,26 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     config->ramp.length = ascii_ramp_total_chars(optarg);
                 } else {
                     fprintf(stderr, "Error: ASCII gradient cannot be empty\n");
+                    return -1;
+                }
+                break;
+
+            case 'm':
+                if (!optarg) {
+                    fprintf(stderr, "Error: --mode requires a value\n");
+                    return -1;
+                }
+
+                if (strcmp(optarg, "ascii") == 0) {
+                    selected_output_mode = OUTPUT_MODE_ASCII;
+                } else if (strcmp(optarg, "braille") == 0) {
+                    selected_output_mode = OUTPUT_MODE_BRAILLE;
+                } else if (strcmp(optarg, "ansi") == 0) {
+                    selected_output_mode = OUTPUT_MODE_ANSI;
+                } else if (strcmp(optarg, "ansi-bg") == 0) {
+                    selected_output_mode = OUTPUT_MODE_ANSI_BG;
+                } else {
+                    fprintf(stderr, "Error: Invalid mode '%s'. Expected one of: ascii, braille, ansi, ansi-bg\n", optarg);
                     return -1;
                 }
                 break;
@@ -222,10 +265,12 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 break;
 
             case 'c':
+                legacy_output_flags_used = 1;
                 config->color = 1;
                 break;
 
             case 'B':
+                legacy_output_flags_used = 1;
                 config->color_background_mode = 1;
                 break;
             
@@ -240,25 +285,40 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
 
             case 't':
                 config->threshold = 1;
-                if (optarg) {
-                    if (parse_numeric_arg(optarg, 0, 255, &config->threshold_value) != 0) {
-                        fprintf(stderr, "Error: Invalid threshold value '%s'\n", optarg);
-                        return -1;
-                    }
+                if (parse_numeric_arg(optarg, 0, 255, &config->threshold_value) != 0) {
+                    fprintf(stderr, "Error: Invalid threshold value '%s'\n", optarg);
+                    return -1;
                 }
                 break;
                 
             case 'd':
                 config->dither = 1;
-                if (optarg) {
-                    if (parse_numeric_arg(optarg, 0, 255, &config->dither_threshold) != 0) {
-                        fprintf(stderr, "Error: Invalid dither threshold value '%s'\n", optarg);
-                        return -1;
-                    }
+                if (parse_numeric_arg(optarg, 0, 255, &config->dither_threshold) != 0) {
+                    fprintf(stderr, "Error: Invalid dither threshold value '%s'\n", optarg);
+                    return -1;
+                }
+                break;
+
+            case 'e':
+                if (!optarg) {
+                    fprintf(stderr, "Error: --edge requires a value\n");
+                    return -1;
+                }
+
+                if (strcmp(optarg, "none") == 0) {
+                    selected_edge_mode = EDGE_MODE_NONE;
+                } else if (strcmp(optarg, "sobel") == 0) {
+                    selected_edge_mode = EDGE_MODE_SOBEL;
+                } else if (strcmp(optarg, "canny") == 0) {
+                    selected_edge_mode = EDGE_MODE_CANNY;
+                } else {
+                    fprintf(stderr, "Error: Invalid edge mode '%s'. Expected one of: none, sobel, canny\n", optarg);
+                    return -1;
                 }
                 break;
                 
             case 's':
+                legacy_edge_flags_used = 1;
                 config->sobel_edge_detection = 1;
                 if (optarg) {
                     if (parse_numeric_arg(optarg, 0, 255, &config->sobel_edge_detection_threshold) != 0) {
@@ -269,6 +329,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 break;
                 
             case 'C':
+                legacy_edge_flags_used = 1;
                 config->canny_edge_detection = 1;
                 if (optarg) {
                     // Parse comma-separated Canny parameters
@@ -314,7 +375,40 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 break;
                 
             case 'b':
+                legacy_output_flags_used = 1;
                 config->braille = 1;
+                break;
+
+            case 3:
+                edge_threshold_set = 1;
+                if (parse_numeric_arg(optarg, 0, 255, &config->sobel_edge_detection_threshold) != 0) {
+                    fprintf(stderr, "Error: Invalid edge threshold value '%s'\n", optarg);
+                    return -1;
+                }
+                break;
+
+            case 4:
+                canny_sigma_set = 1;
+                if (parse_float_arg(optarg, 0.1, 10.0, &config->canny_edge_detection_sigma) != 0) {
+                    fprintf(stderr, "Error: Invalid Canny sigma value '%s'\n", optarg);
+                    return -1;
+                }
+                break;
+
+            case 5:
+                canny_high_set = 1;
+                if (parse_numeric_arg(optarg, 0, 255, &config->canny_edge_detection_high_threshold) != 0) {
+                    fprintf(stderr, "Error: Invalid Canny high threshold value '%s'\n", optarg);
+                    return -1;
+                }
+                break;
+
+            case 6:
+                canny_low_set = 1;
+                if (parse_numeric_arg(optarg, 0, 255, &config->canny_edge_detection_low_threshold) != 0) {
+                    fprintf(stderr, "Error: Invalid Canny low threshold value '%s'\n", optarg);
+                    return -1;
+                }
                 break;
                 
             case 'r':
@@ -345,6 +439,70 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 return -1;
         }
     }
+
+    if (selected_output_mode != OUTPUT_MODE_UNSET && legacy_output_flags_used) {
+        fprintf(stderr, "Output mode conflict: use either --mode or legacy output flags (-b/-c/-B), not both\n");
+        return -1;
+    }
+
+    if (selected_output_mode != OUTPUT_MODE_UNSET) {
+        config->braille = 0;
+        config->color = 0;
+        config->color_background_mode = 0;
+
+        if (selected_output_mode == OUTPUT_MODE_BRAILLE) {
+            config->braille = 1;
+        } else if (selected_output_mode == OUTPUT_MODE_ANSI) {
+            config->color = 1;
+        } else if (selected_output_mode == OUTPUT_MODE_ANSI_BG) {
+            config->color = 1;
+            config->color_background_mode = 1;
+        }
+    }
+
+    if (selected_edge_mode != EDGE_MODE_UNSET && legacy_edge_flags_used) {
+        fprintf(stderr, "Edge mode conflict: use either --edge or legacy edge flags (-s/-C), not both\n");
+        return -1;
+    }
+
+    if (selected_edge_mode == EDGE_MODE_UNSET) {
+        if (edge_threshold_set && (canny_sigma_set || canny_high_set || canny_low_set)) {
+            fprintf(stderr, "Edge mode conflict: cannot infer edge mode when both Sobel and Canny parameters are provided; set --edge explicitly\n");
+            return -1;
+        }
+
+        if (canny_sigma_set || canny_high_set || canny_low_set) {
+            selected_edge_mode = EDGE_MODE_CANNY;
+        } else if (edge_threshold_set) {
+            selected_edge_mode = EDGE_MODE_SOBEL;
+        }
+    }
+
+    if (selected_edge_mode == EDGE_MODE_NONE && (edge_threshold_set || canny_sigma_set || canny_high_set || canny_low_set)) {
+        fprintf(stderr, "Edge mode conflict: --edge none cannot be combined with edge parameters\n");
+        return -1;
+    }
+
+    if (selected_edge_mode == EDGE_MODE_SOBEL && (canny_sigma_set || canny_high_set || canny_low_set)) {
+        fprintf(stderr, "Edge mode conflict: Sobel mode cannot be combined with Canny parameters\n");
+        return -1;
+    }
+
+    if (selected_edge_mode == EDGE_MODE_CANNY && edge_threshold_set) {
+        fprintf(stderr, "Edge mode conflict: Canny mode cannot be combined with --edge-threshold\n");
+        return -1;
+    }
+
+    if (selected_edge_mode != EDGE_MODE_UNSET) {
+        config->sobel_edge_detection = 0;
+        config->canny_edge_detection = 0;
+
+        if (selected_edge_mode == EDGE_MODE_SOBEL) {
+            config->sobel_edge_detection = 1;
+        } else if (selected_edge_mode == EDGE_MODE_CANNY) {
+            config->canny_edge_detection = 1;
+        }
+    }
     
     // Handle aspect ratio calculations
     if (width_set && !height_set) {
@@ -360,6 +518,21 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
 int validate_config(AppConfig* config) {
     if (!config->input_path) {
         fprintf(stderr, "Input path is required\n");
+        return -1;
+    }
+
+    if (config->braille && config->color) {
+        fprintf(stderr, "Output mode conflict: braille output cannot be combined with ANSI color output\n");
+        return -1;
+    }
+
+    if (config->color_background_mode && !config->color) {
+        fprintf(stderr, "Output mode conflict: ANSI background mode requires ANSI color mode\n");
+        return -1;
+    }
+
+    if (config->sobel_edge_detection && config->canny_edge_detection) {
+        fprintf(stderr, "Edge mode conflict: Sobel and Canny cannot be enabled at the same time\n");
         return -1;
     }
 
