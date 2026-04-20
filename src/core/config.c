@@ -46,11 +46,136 @@ AppConfig get_default_config() {
     return config;
 }
 
+typedef enum {
+    OUTPUT_MODE_UNSET = 0,
+    OUTPUT_MODE_ASCII,
+    OUTPUT_MODE_BRAILLE,
+    OUTPUT_MODE_ANSI,
+    OUTPUT_MODE_ANSI_BG
+} OutputModeSelection;
+
+typedef enum {
+    EDGE_MODE_UNSET = 0,
+    EDGE_MODE_NONE,
+    EDGE_MODE_SOBEL,
+    EDGE_MODE_CANNY
+} EdgeModeSelection;
+
+typedef struct {
+    const char* name;
+    const char* description;
+    OutputModeSelection output_mode;
+    EdgeModeSelection edge_mode;
+    int threshold_enabled;
+    int threshold_value;
+    int dither_enabled;
+    int dither_threshold;
+    int invert_enabled;
+    int sobel_threshold;
+    float canny_sigma;
+    int canny_high;
+    int canny_low;
+} PresetDefinition;
+
+static const PresetDefinition PRESETS[] = {
+    {
+        .name = "photo",
+        .description = "ASCII tuned for photos with mild dithering",
+        .output_mode = OUTPUT_MODE_ASCII,
+        .edge_mode = EDGE_MODE_NONE,
+        .threshold_enabled = 0,
+        .threshold_value = 128,
+        .dither_enabled = 1,
+        .dither_threshold = 110,
+        .invert_enabled = 0,
+        .sobel_threshold = 128,
+        .canny_sigma = 0.8f,
+        .canny_high = 120,
+        .canny_low = 50
+    },
+    {
+        .name = "lineart",
+        .description = "High-contrast edge-focused output",
+        .output_mode = OUTPUT_MODE_ASCII,
+        .edge_mode = EDGE_MODE_SOBEL,
+        .threshold_enabled = 1,
+        .threshold_value = 135,
+        .dither_enabled = 0,
+        .dither_threshold = 128,
+        .invert_enabled = 0,
+        .sobel_threshold = 145,
+        .canny_sigma = 0.8f,
+        .canny_high = 120,
+        .canny_low = 50
+    },
+    {
+        .name = "terminal",
+        .description = "Balanced default for terminal readability",
+        .output_mode = OUTPUT_MODE_ASCII,
+        .edge_mode = EDGE_MODE_NONE,
+        .threshold_enabled = 0,
+        .threshold_value = 128,
+        .dither_enabled = 0,
+        .dither_threshold = 128,
+        .invert_enabled = 0,
+        .sobel_threshold = 128,
+        .canny_sigma = 0.8f,
+        .canny_high = 120,
+        .canny_low = 50
+    }
+};
+
+static const size_t PRESET_COUNT = sizeof(PRESETS) / sizeof(PRESETS[0]);
+
+static const PresetDefinition* find_preset(const char* preset_name) {
+    if (!preset_name) {
+        return NULL;
+    }
+
+    for (size_t i = 0; i < PRESET_COUNT; i++) {
+        if (strcmp(PRESETS[i].name, preset_name) == 0) {
+            return &PRESETS[i];
+        }
+    }
+
+    return NULL;
+}
+
+static void apply_preset(const PresetDefinition* preset,
+                         AppConfig* config,
+                         OutputModeSelection* selected_output_mode,
+                         EdgeModeSelection* selected_edge_mode) {
+    if (!preset || !config || !selected_output_mode || !selected_edge_mode) {
+        return;
+    }
+
+    *selected_output_mode = preset->output_mode;
+    *selected_edge_mode = preset->edge_mode;
+
+    config->threshold = preset->threshold_enabled;
+    config->threshold_value = preset->threshold_value;
+    config->dither = preset->dither_enabled;
+    config->dither_threshold = preset->dither_threshold;
+    config->negative = preset->invert_enabled;
+    config->sobel_edge_detection_threshold = preset->sobel_threshold;
+    config->canny_edge_detection_sigma = preset->canny_sigma;
+    config->canny_edge_detection_high_threshold = preset->canny_high;
+    config->canny_edge_detection_low_threshold = preset->canny_low;
+}
+
+static void print_available_presets(void) {
+    printf("Presets:\n");
+    for (size_t i = 0; i < PRESET_COUNT; i++) {
+        printf("      %-12s %s\n", PRESETS[i].name, PRESETS[i].description);
+    }
+}
+
 
 struct option long_options[] = {
     {"input", required_argument, NULL, 'i'},
     {"output", required_argument, NULL, 'o'},
     {"no-terminal-output", no_argument, NULL, 'q'},
+    {"preset", required_argument, NULL, 'P'},
     {"ascii-gradient", required_argument, NULL, 'g'},
     {"mode", required_argument, NULL, 'm'},
     {"width", required_argument, NULL, 'w'},
@@ -87,6 +212,11 @@ void print_usage(const char* program_name) {
     printf("  -i, --input <file>         Input image file (JPG, PNG, TGA, BMP, etc.)\n");
     printf("  -o, --output <file>        Output file (default: print to terminal)\n");
     printf("  -q, --no-terminal-output   Don't print the result to terminal\n\n");
+
+    printf("Preset Options:\n");
+    printf("  -P, --preset <name>        Apply a processing preset (override with explicit flags)\n");
+    print_available_presets();
+    printf("\n");
     
     printf("Display Options:\n");
     printf("  -g, --ascii-gradient <str> ASCII gradient (default: ' .:-=+*#@&8B$@')\n");
@@ -166,20 +296,8 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
         return -1;
     }
 
-    enum {
-        OUTPUT_MODE_UNSET = 0,
-        OUTPUT_MODE_ASCII,
-        OUTPUT_MODE_BRAILLE,
-        OUTPUT_MODE_ANSI,
-        OUTPUT_MODE_ANSI_BG
-    } selected_output_mode = OUTPUT_MODE_UNSET;
-
-    enum {
-        EDGE_MODE_UNSET = 0,
-        EDGE_MODE_NONE,
-        EDGE_MODE_SOBEL,
-        EDGE_MODE_CANNY
-    } selected_edge_mode = EDGE_MODE_UNSET;
+    OutputModeSelection selected_output_mode = OUTPUT_MODE_UNSET;
+    EdgeModeSelection selected_edge_mode = EDGE_MODE_UNSET;
     
     int opt;
     int option_index = 0;
@@ -191,7 +309,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     int canny_sigma_set = 0;
     int canny_high_set = 0;
     int canny_low_set = 0;
-    const char* short_options = "i:o:w:h:g:m:a:t:d:e:T:nr:qbcBs::C::vV?";
+    const char* short_options = "i:o:w:h:P:g:m:a:t:d:e:T:nr:qbcBs::C::vV?";
     
     // Reset getopt state in case it was used elsewhere
     optind = 0;
@@ -208,6 +326,22 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 
             case 'q':
                 config->no_terminal_output = 1;
+                break;
+
+            case 'P':
+                {
+                    const PresetDefinition* preset = find_preset(optarg);
+                    if (!preset) {
+                        fprintf(stderr, "Error: Unknown preset '%s'\n", optarg ? optarg : "(null)");
+                        fprintf(stderr, "Available presets: ");
+                        for (size_t i = 0; i < PRESET_COUNT; i++) {
+                            fprintf(stderr, "%s%s", PRESETS[i].name, (i + 1 < PRESET_COUNT) ? ", " : "\n");
+                        }
+                        return -1;
+                    }
+
+                    apply_preset(preset, config, &selected_output_mode, &selected_edge_mode);
+                }
                 break;
                 
             case 'g':
