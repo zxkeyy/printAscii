@@ -7,6 +7,7 @@
 #include "core/image_pipeline.h"
 #include "io/image_loader.h"
 #include "io/image_saver.h"
+#include "utilities/debug_artifacts.h"
 #include "utilities/print_utf16_string.h"
 
 int main(int argc, char *argv[]) {
@@ -32,7 +33,7 @@ int main(int argc, char *argv[]) {
 
     // Debug: Save original image if verbose mode
     if (config.verbose) {
-        image_save_to_png_file(img, "1original.png");
+        save_debug_image(img, &config, "1original.png");
     }
 
     // Process the image through the pipeline

@@ -9,6 +9,7 @@
 #include "conversion/image_to_braille.h"
 #include "conversion/intensity_map.h"
 #include "io/image_saver.h"
+#include "utilities/debug_artifacts.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -58,7 +59,7 @@ PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config)
         image_resize(img, config->width, config->height);
         // Debug output
         if (config->verbose) {
-            image_save_to_png_file(img, "2resized.png");
+            save_debug_image(img, config, "2resized.png");
         }
     }
     
@@ -67,7 +68,7 @@ PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config)
         image_to_grayscale(img, config->alpha);
         // Debug output
         if (config->verbose) {
-            image_save_to_png_file(img, "3gray.png");
+            save_debug_image(img, config, "3gray.png");
         }
     }
     
@@ -78,7 +79,7 @@ PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config)
                            config->canny_edge_detection_low_threshold);
         // Debug output
         if (config->verbose) {
-            image_save_to_png_file(img, "4cannyedgedetect.png");
+            save_debug_image(img, config, "4cannyedgedetect.png");
         }
     }
     
@@ -86,7 +87,7 @@ PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config)
         sobel_edge_detection(img, config->sobel_edge_detection_threshold);
         // Debug output
         if (config->verbose) {
-            image_save_to_png_file(img, "4sobeledgedetect.png");
+            save_debug_image(img, config, "4sobeledgedetect.png");
         }
     }
     
@@ -95,7 +96,7 @@ PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config)
         invert_image(img);
         // Debug output
         if (config->verbose) {
-            image_save_to_png_file(img, "5inverted.png");
+            save_debug_image(img, config, "5inverted.png");
         }
     }
     
@@ -104,7 +105,7 @@ PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config)
         floyd_steinberg_dither(img, config->dither_threshold);
         // Debug output
         if (config->verbose) {
-            image_save_to_png_file(img, "6dithered.png");
+            save_debug_image(img, config, "6dithered.png");
         }
     }
     

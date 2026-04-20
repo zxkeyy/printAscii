@@ -1,5 +1,5 @@
 # Gather all source files from src directory
-file(GLOB_RECURSE SRC_FILES
+file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
     "core/*.c"
     "preprocessing/*.c"
     "conversion/*.c"

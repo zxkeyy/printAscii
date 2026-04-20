@@ -34,6 +34,7 @@ const AppConfig DEFAULT_CONFIG = {
     .braille = 0,
     .font_aspect_ratio = 0.45,
     .verbose = 0,
+    .debug_dir = ".",
     .ramp = {0} // Initialize all to zero and set it later in get function, because C ¯\_(ツ)_/¯.
 };
 
@@ -71,6 +72,7 @@ struct option long_options[] = {
     {"sobel-edge-detection", optional_argument, NULL, 's'},
     {"canny-edge-detection", optional_argument, NULL, 'C'},
     {"tiling-text", required_argument, NULL, 'T'},
+    {"debug-dir", required_argument, NULL, 7},
     {"verbose", no_argument, NULL, 'v'},
     {"version", no_argument, NULL, 'V'},
     {"help", no_argument, NULL, '?'},
@@ -113,6 +115,7 @@ void print_usage(const char* program_name) {
     printf("      --canny-low <n>        Canny low threshold (default: 50)\n\n");
     
     printf("General Options:\n");
+    printf("      --debug-dir <dir>      Directory for verbose debug artifacts (default: .)\n");
     printf("  -v, --verbose              Display processing information\n");
     printf("  -V, --version              Show version information\n");
     printf("  --help                     Display this help message\n\n");
@@ -410,6 +413,14 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     return -1;
                 }
                 break;
+
+            case 7:
+                if (!optarg || strlen(optarg) == 0) {
+                    fprintf(stderr, "Error: --debug-dir requires a non-empty directory path\n");
+                    return -1;
+                }
+                config->debug_dir = optarg;
+                break;
                 
             case 'r':
                 {
@@ -576,6 +587,11 @@ int validate_config(AppConfig* config) {
         return -1;
     }
 
+    if (!config->debug_dir || config->debug_dir[0] == '\0') {
+        fprintf(stderr, "Debug directory path must not be empty\n");
+        return -1;
+    }
+
     return 0;
 }
 
@@ -583,6 +599,7 @@ void print_config(const AppConfig* config) {
     printf("Configuration:\n");
     printf("  Input file: %s\n", config->input_path);
     printf("  Output file: %s\n", config->output_path ? config->output_path : "(terminal only)");
+    printf("  Debug directory: %s\n", config->debug_dir ? config->debug_dir : ".");
     printf("  Dimensions: %d x %d characters\n", config->width, config->height);
     printf("  ASCII gradient: \"%s\"\n", config->ramp.characters);
     
