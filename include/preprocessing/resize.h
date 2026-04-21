@@ -1,8 +1,9 @@
 #ifndef RESIZE_H
 #define RESIZE_H
 
+#include <stdbool.h>
 #include "core/image.h"
 
-void image_resize(Image* img, int new_width, int new_height);
+bool image_resize(Image* img, int new_width, int new_height);
 
 #endif // RESIZE_H

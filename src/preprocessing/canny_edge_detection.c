@@ -7,14 +7,14 @@
 #include "utilities/double_threshold.h"
 #include "utilities/hysteresis_edge_track.h"
 
-void canny_edge_detection(Image* img, float sigma, int high_threshold, int low_threshold){
+bool canny_edge_detection(Image* img, float sigma, int high_threshold, int low_threshold){
     if (img == NULL) {
         fprintf(stderr, "Image is NULL\n");
-        return;
+        return false;
     }
     if(img->type != IMAGE_TYPE_GRAY) {
         fprintf(stderr, "Image is not grayscale\n");
-        return;
+        return false;
     }
 
     gaussian_blur(img, sigma);
@@ -22,6 +22,12 @@ void canny_edge_detection(Image* img, float sigma, int high_threshold, int low_t
     // Allocate memory for sobel outputs
     float* angles = malloc(img->width * img->height * sizeof(float));
     uint8_t* magnitude = malloc(img->width * img->height * sizeof(uint8_t));
+    if (!angles || !magnitude) {
+        fprintf(stderr, "Failed to allocate Canny intermediate buffers\n");
+        free(angles);
+        free(magnitude);
+        return false;
+    }
 
     // Apply sobel operator
     sobel_operator(img->pixels, magnitude, angles, img->width, img->height, -1);
@@ -35,4 +41,5 @@ void canny_edge_detection(Image* img, float sigma, int high_threshold, int low_t
     double_threshold(img, high_threshold, low_threshold);
 
     hysteresis_edge_track(img);
+    return true;
 }

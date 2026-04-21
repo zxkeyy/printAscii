@@ -3,10 +3,15 @@
 #include <core/image.h>
 #include <preprocessing/invert.h>
 
-void invert_grayscale_image(Image* img) {
+bool invert_grayscale_image(Image* img) {
+    if (!img) {
+        fprintf(stderr, "Image is NULL\n");
+        return false;
+    }
+
     if(img->type != IMAGE_TYPE_GRAY) {
         fprintf(stderr, "Image is not grayscale\n");
-        return;
+        return false;
     }
 
     for(int y = 0; y < img->height; y++) {
@@ -15,12 +20,19 @@ void invert_grayscale_image(Image* img) {
             *pixel = 255 - *pixel;
         }
     }
+
+    return true;
 }
 
-void invert_rgb_image(Image* img) {
+bool invert_rgb_image(Image* img) {
+    if (!img) {
+        fprintf(stderr, "Image is NULL\n");
+        return false;
+    }
+
     if(img->type != IMAGE_TYPE_RGB) {
         fprintf(stderr, "Image is not RGB\n");
-        return;
+        return false;
     }
 
     for(int y = 0; y < img->height; y++) {
@@ -31,12 +43,19 @@ void invert_rgb_image(Image* img) {
             pixel[2] = 255 - pixel[2];
         }
     }
+
+    return true;
 }
 
-void invert_rgba_image(Image* img) {
+bool invert_rgba_image(Image* img) {
+    if (!img) {
+        fprintf(stderr, "Image is NULL\n");
+        return false;
+    }
+
     if(img->type != IMAGE_TYPE_RGBA) {
         fprintf(stderr, "Image is not RGBA\n");
-        return;
+        return false;
     }
 
     for(int y = 0; y < img->height; y++) {
@@ -47,20 +66,25 @@ void invert_rgba_image(Image* img) {
             pixel[2] = 255 - pixel[2];
         }
     }
+
+    return true;
 }
 
-void invert_image(Image* img) {
+bool invert_image(Image* img) {
+    if (!img) {
+        fprintf(stderr, "Image is NULL\n");
+        return false;
+    }
+
     switch(img->type) {
         case IMAGE_TYPE_GRAY:
-            invert_grayscale_image(img);
-            break;
+            return invert_grayscale_image(img);
         case IMAGE_TYPE_RGB:
-            invert_rgb_image(img);
-            break;
+            return invert_rgb_image(img);
         case IMAGE_TYPE_RGBA:
-            invert_rgba_image(img);
-            break;
+            return invert_rgba_image(img);
         default:
             fprintf(stderr, "Unsupported image type\n");
+            return false;
     }
 }

@@ -12,16 +12,21 @@ uint8_t RGBA_blend(uint8_t r, uint8_t g, uint8_t b, uint8_t a, uint8_t alpha_val
     return (1 - a / 255.0) * alpha_value + (a / 255.0) * rgb;
 }
 
-void RGB_image_to_grayscale(Image* img) {
+bool RGB_image_to_grayscale(Image* img) {
+    if (!img) {
+        fprintf(stderr, "Image is NULL\n");
+        return false;
+    }
+
     if(img->type != IMAGE_TYPE_RGB) {
         fprintf(stderr, "Image is not RGB\n");
-        return;
+        return false;
     }
 
     uint8_t* pixels = malloc(img->width * img->height * sizeof(uint8_t));
     if(!pixels) {
         perror("Failed to allocate grayscale buffer");
-        return;
+        return false;
     }
 
     for(int y = 0; y < img->height; y++) {
@@ -35,18 +40,24 @@ void RGB_image_to_grayscale(Image* img) {
     img->pixels = pixels;
     img->type = IMAGE_TYPE_GRAY;
     img->channels = 1;
+    return true;
 }
 
-void RGBA_image_to_grayscale(Image* img, uint8_t alpha_value) {
+bool RGBA_image_to_grayscale(Image* img, uint8_t alpha_value) {
+    if (!img) {
+        fprintf(stderr, "Image is NULL\n");
+        return false;
+    }
+
     if(img->type != IMAGE_TYPE_RGBA) {
         fprintf(stderr, "Image is not RGBA\n");
-        return;
+        return false;
     }
 
     uint8_t* pixels = malloc(img->width * img->height * sizeof(uint8_t));
     if(!pixels) {
         perror("Failed to allocate grayscale buffer");
-        return;
+        return false;
     }
 
     for(int y = 0; y < img->height; y++) {
@@ -60,13 +71,24 @@ void RGBA_image_to_grayscale(Image* img, uint8_t alpha_value) {
     img->pixels = pixels;
     img->type = IMAGE_TYPE_GRAY;
     img->channels = 1;
+    return true;
 }
 
-void image_to_grayscale(Image* img, uint8_t alpha_value) {
+bool image_to_grayscale(Image* img, uint8_t alpha_value) {
+    if (!img) {
+        fprintf(stderr, "Image is NULL\n");
+        return false;
+    }
+
     switch(img->type) {
-        case IMAGE_TYPE_RGB: RGB_image_to_grayscale(img); break;
-        case IMAGE_TYPE_RGBA: RGBA_image_to_grayscale(img, alpha_value); break;
-        case IMAGE_TYPE_GRAY: break; // Already grayscale
-        default: fprintf(stderr, "Unsupported image type\n");
+        case IMAGE_TYPE_RGB:
+            return RGB_image_to_grayscale(img);
+        case IMAGE_TYPE_RGBA:
+            return RGBA_image_to_grayscale(img, alpha_value);
+        case IMAGE_TYPE_GRAY:
+            return true;
+        default:
+            fprintf(stderr, "Unsupported image type\n");
+            return false;
     }
 }

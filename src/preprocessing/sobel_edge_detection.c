@@ -5,17 +5,22 @@
 #include "preprocessing/sobel_edge_detection.h"
 #include "utilities/sobel_operator.h"
 
-void sobel_edge_detection(Image* img, uint16_t threshold){
+bool sobel_edge_detection(Image* img, uint16_t threshold){
+    if (!img) {
+        fprintf(stderr, "Image is NULL\n");
+        return false;
+    }
+
     if (img->type != IMAGE_TYPE_GRAY) {
         fprintf(stderr, "Image is not grayscale\n");
-        return;
+        return false;
     }
 
     // Allocate memory for the output image
     Image* output = image_create(img->width, img->height, IMAGE_TYPE_GRAY);
     if (!output) {
         fprintf(stderr, "Failed to allocate output image\n");
-        return;
+        return false;
     }
 
     sobel_operator(img->pixels, output->pixels, NULL, img->width, img->height, threshold);
@@ -24,6 +29,7 @@ void sobel_edge_detection(Image* img, uint16_t threshold){
     img->pixels = output->pixels;
     output->pixels = NULL;
     image_free(output);
+    return true;
 }
 
 // void sobel_edge_detection(Image* img, uint16_t threshold){

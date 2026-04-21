@@ -26,9 +26,13 @@ ProcessingResult* image_pipeline_process(Image* img, const AppConfig* config) {
     pipeline_calculate_dimensions(&mutable_config, img);
     
     // Stage 2: Apply preprocessing pipeline
-    result->status = pipeline_apply_preprocessing(img, &mutable_config);
+    const char* preprocessing_stage = NULL;
+    result->status = pipeline_apply_preprocessing(img, &mutable_config, &preprocessing_stage);
     if (result->status != PIPELINE_SUCCESS) {
-        result->error_message = strdup("Preprocessing failed");
+        const char* stage = preprocessing_stage ? preprocessing_stage : "unknown";
+        char message[128];
+        snprintf(message, sizeof(message), "Preprocessing failed at stage: %s", stage);
+        result->error_message = strdup(message);
         return result;
     }
     
@@ -53,10 +57,19 @@ ProcessingResult* image_pipeline_process(Image* img, const AppConfig* config) {
     return result;
 }
 
-PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config) {
+PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config, const char** error_stage) {
+    if (error_stage) {
+        *error_stage = NULL;
+    }
+
     // Step 1: Resize
     if (config->width > 0 && config->height > 0) {
-        image_resize(img, config->width, config->height);
+        if (!image_resize(img, config->width, config->height)) {
+            if (error_stage) {
+                *error_stage = "resize";
+            }
+            return PIPELINE_ERROR_PROCESSING;
+        }
         // Debug output
         if (config->verbose) {
             save_debug_image(img, config, "2resized.png");
@@ -65,7 +78,12 @@ PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config)
     
     // Step 2: Grayscale conversion
     if (!config->color) {
-        image_to_grayscale(img, config->alpha);
+        if (!image_to_grayscale(img, config->alpha)) {
+            if (error_stage) {
+                *error_stage = "grayscale";
+            }
+            return PIPELINE_ERROR_PROCESSING;
+        }
         // Debug output
         if (config->verbose) {
             save_debug_image(img, config, "3gray.png");
@@ -74,9 +92,14 @@ PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config)
     
     // Step 3: Edge detection
     if (config->canny_edge_detection) {
-        canny_edge_detection(img, config->canny_edge_detection_sigma, 
-                           config->canny_edge_detection_high_threshold, 
-                           config->canny_edge_detection_low_threshold);
+        if (!canny_edge_detection(img, config->canny_edge_detection_sigma,
+                                  config->canny_edge_detection_high_threshold,
+                                  config->canny_edge_detection_low_threshold)) {
+            if (error_stage) {
+                *error_stage = "canny-edge-detection";
+            }
+            return PIPELINE_ERROR_PROCESSING;
+        }
         // Debug output
         if (config->verbose) {
             save_debug_image(img, config, "4cannyedgedetect.png");
@@ -84,7 +107,12 @@ PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config)
     }
     
     if (config->sobel_edge_detection) {
-        sobel_edge_detection(img, config->sobel_edge_detection_threshold);
+        if (!sobel_edge_detection(img, config->sobel_edge_detection_threshold)) {
+            if (error_stage) {
+                *error_stage = "sobel-edge-detection";
+            }
+            return PIPELINE_ERROR_PROCESSING;
+        }
         // Debug output
         if (config->verbose) {
             save_debug_image(img, config, "4sobeledgedetect.png");
@@ -93,7 +121,12 @@ PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config)
     
     // Step 4: Inversion
     if (config->negative) {
-        invert_image(img);
+        if (!invert_image(img)) {
+            if (error_stage) {
+                *error_stage = "invert";
+            }
+            return PIPELINE_ERROR_PROCESSING;
+        }
         // Debug output
         if (config->verbose) {
             save_debug_image(img, config, "5inverted.png");
@@ -102,7 +135,12 @@ PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config)
     
     // Step 5: Dithering
     if (config->dither) {
-        floyd_steinberg_dither(img, config->dither_threshold);
+        if (!floyd_steinberg_dither(img, config->dither_threshold)) {
+            if (error_stage) {
+                *error_stage = "dither";
+            }
+            return PIPELINE_ERROR_PROCESSING;
+        }
         // Debug output
         if (config->verbose) {
             save_debug_image(img, config, "6dithered.png");

@@ -24,7 +24,7 @@ typedef struct {
 ProcessingResult* image_pipeline_process(Image* img, const AppConfig* config);
 
 // Helper functions for pipeline stages
-PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config);
+PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config, const char** error_stage);
 char* pipeline_convert_to_output(const Image* img, const AppConfig* config);
 PipelineStatus pipeline_handle_output(const ProcessingResult* result, const AppConfig* config);
 

@@ -5,10 +5,15 @@
 
 #define CLAMP(x) (x < 0 ? 0 : (x > 255 ? 255 : x))
 
-void floyd_steinberg_dither(Image* img, uint8_t threshold) {
+bool floyd_steinberg_dither(Image* img, uint8_t threshold) {
+    if (!img) {
+        fprintf(stderr, "Image is NULL\n");
+        return false;
+    }
+
     if (img->type != IMAGE_TYPE_GRAY) {
         fprintf(stderr, "Image is not grayscale\n");
-        return;
+        return false;
     }
 
     const int width = img->width;
@@ -40,4 +45,6 @@ void floyd_steinberg_dither(Image* img, uint8_t threshold) {
             }
         }
     }
+
+    return true;
 }
