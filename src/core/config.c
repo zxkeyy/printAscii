@@ -309,6 +309,20 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     int canny_sigma_set = 0;
     int canny_high_set = 0;
     int canny_low_set = 0;
+    int explicit_mode_set = 0;
+    int explicit_edge_mode_set = 0;
+    int explicit_threshold_set = 0;
+    int explicit_dither_set = 0;
+    int explicit_invert_set = 0;
+    int explicit_threshold_value = 128;
+    int explicit_dither_threshold = 128;
+    int explicit_sobel_threshold = 128;
+    float explicit_canny_sigma = 0.8f;
+    int explicit_canny_high = 120;
+    int explicit_canny_low = 50;
+    OutputModeSelection explicit_output_mode = OUTPUT_MODE_UNSET;
+    EdgeModeSelection explicit_edge_mode = EDGE_MODE_UNSET;
+    const PresetDefinition* selected_preset = NULL;
     const char* short_options = "i:o:w:h:P:g:m:a:t:d:e:T:nr:qbcBs::C::vV?";
     
     // Reset getopt state in case it was used elsewhere
@@ -340,7 +354,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                         return -1;
                     }
 
-                    apply_preset(preset, config, &selected_output_mode, &selected_edge_mode);
+                    selected_preset = preset;
                 }
                 break;
                 
@@ -372,6 +386,8 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     fprintf(stderr, "Error: Invalid mode '%s'. Expected one of: ascii, braille, ansi, ansi-bg\n", optarg);
                     return -1;
                 }
+                explicit_mode_set = 1;
+                explicit_output_mode = selected_output_mode;
                 break;
                 
             case 'w':
@@ -399,6 +415,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 
             case 'n':
                 config->negative = 1;
+                explicit_invert_set = 1;
                 break;
 
             case 'c':
@@ -426,6 +443,8 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     fprintf(stderr, "Error: Invalid threshold value '%s'\n", optarg);
                     return -1;
                 }
+                explicit_threshold_set = 1;
+                explicit_threshold_value = config->threshold_value;
                 break;
                 
             case 'd':
@@ -434,6 +453,8 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     fprintf(stderr, "Error: Invalid dither threshold value '%s'\n", optarg);
                     return -1;
                 }
+                explicit_dither_set = 1;
+                explicit_dither_threshold = config->dither_threshold;
                 break;
 
             case 'e':
@@ -452,6 +473,8 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     fprintf(stderr, "Error: Invalid edge mode '%s'. Expected one of: none, sobel, canny\n", optarg);
                     return -1;
                 }
+                explicit_edge_mode_set = 1;
+                explicit_edge_mode = selected_edge_mode;
                 break;
                 
             case 's':
@@ -522,6 +545,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     fprintf(stderr, "Error: Invalid edge threshold value '%s'\n", optarg);
                     return -1;
                 }
+                explicit_sobel_threshold = config->sobel_edge_detection_threshold;
                 break;
 
             case 4:
@@ -530,6 +554,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     fprintf(stderr, "Error: Invalid Canny sigma value '%s'\n", optarg);
                     return -1;
                 }
+                explicit_canny_sigma = config->canny_edge_detection_sigma;
                 break;
 
             case 5:
@@ -538,6 +563,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     fprintf(stderr, "Error: Invalid Canny high threshold value '%s'\n", optarg);
                     return -1;
                 }
+                explicit_canny_high = config->canny_edge_detection_high_threshold;
                 break;
 
             case 6:
@@ -546,6 +572,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     fprintf(stderr, "Error: Invalid Canny low threshold value '%s'\n", optarg);
                     return -1;
                 }
+                explicit_canny_low = config->canny_edge_detection_low_threshold;
                 break;
 
             case 7:
@@ -583,6 +610,52 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 fprintf(stderr, "Error: Unknown option\n");
                 return -1;
         }
+    }
+
+    if (selected_preset) {
+        apply_preset(selected_preset, config, &selected_output_mode, &selected_edge_mode);
+    }
+
+    if (explicit_mode_set) {
+        selected_output_mode = explicit_output_mode;
+    }
+
+    if (explicit_edge_mode_set) {
+        selected_edge_mode = explicit_edge_mode;
+    }
+
+    if (explicit_threshold_set) {
+        config->threshold = 1;
+        config->threshold_value = explicit_threshold_value;
+    }
+
+    if (explicit_dither_set) {
+        config->dither = 1;
+        config->dither_threshold = explicit_dither_threshold;
+    }
+
+    if (explicit_invert_set) {
+        config->negative = 1;
+    }
+
+    if (edge_threshold_set) {
+        config->sobel_edge_detection_threshold = explicit_sobel_threshold;
+    }
+
+    if (canny_sigma_set) {
+        config->canny_edge_detection_sigma = explicit_canny_sigma;
+    }
+
+    if (canny_high_set) {
+        config->canny_edge_detection_high_threshold = explicit_canny_high;
+    }
+
+    if (canny_low_set) {
+        config->canny_edge_detection_low_threshold = explicit_canny_low;
+    }
+
+    if (!explicit_edge_mode_set && selected_preset && (edge_threshold_set || canny_sigma_set || canny_high_set || canny_low_set)) {
+        selected_edge_mode = EDGE_MODE_UNSET;
     }
 
     if (selected_output_mode != OUTPUT_MODE_UNSET && legacy_output_flags_used) {
