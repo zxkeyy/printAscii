@@ -5,6 +5,7 @@
 #include "core/image.h"
 #include "core/config.h"
 #include "core/image_pipeline.h"
+#include "core/video_pipeline.h"
 #include "io/image_loader.h"
 #include "io/image_saver.h"
 #include "utilities/debug_artifacts.h"
@@ -23,6 +24,10 @@ int main(int argc, char *argv[]) {
 
     if (validate_config(&config) != 0) {
         return EXIT_FAILURE;
+    }
+
+    if (config.video) {
+        return video_pipeline_run_terminal(&config);
     }
 
     Image* img = image_load_from_file(config.input_path);

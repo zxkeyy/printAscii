@@ -14,6 +14,8 @@ const AppConfig DEFAULT_CONFIG = {
     .input_path = NULL,
     .output_path = NULL,
     .no_terminal_output = 0,
+    .video = 0,
+    .video_fps = 0.0f,
     .width = 100,
     .height = 0,
     .alpha = 0,
@@ -175,6 +177,8 @@ struct option long_options[] = {
     {"input", required_argument, NULL, 'i'},
     {"output", required_argument, NULL, 'o'},
     {"no-terminal-output", no_argument, NULL, 'q'},
+    {"video", no_argument, NULL, 'x'},
+    {"video-fps", required_argument, NULL, 8},
     {"preset", required_argument, NULL, 'P'},
     {"ascii-gradient", required_argument, NULL, 'g'},
     {"mode", required_argument, NULL, 'm'},
@@ -212,6 +216,8 @@ void print_usage(const char* program_name) {
     printf("  -i, --input <file>         Input image file (JPG, PNG, TGA, BMP, etc.)\n");
     printf("  -o, --output <file>        Output file (default: print to terminal)\n");
     printf("  -q, --no-terminal-output   Don't print the result to terminal\n\n");
+    printf("  -x, --video                Treat input as video/GIF and render frames to terminal\n");
+    printf("      --video-fps <f>        Playback FPS override for video mode (default: source FPS)\n\n");
 
     printf("Preset Options:\n");
     printf("  -P, --preset <name>        Apply a processing preset (override with explicit flags)\n");
@@ -323,7 +329,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     OutputModeSelection explicit_output_mode = OUTPUT_MODE_UNSET;
     EdgeModeSelection explicit_edge_mode = EDGE_MODE_UNSET;
     const PresetDefinition* selected_preset = NULL;
-    const char* short_options = "i:o:w:h:P:g:m:a:t:d:e:T:nr:qbcBs::C::vV?";
+    const char* short_options = "i:o:w:h:P:g:m:a:t:d:e:T:nr:qxbcBs::C::vV?";
     
     // Reset getopt state in case it was used elsewhere
     optind = 0;
@@ -340,6 +346,10 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 
             case 'q':
                 config->no_terminal_output = 1;
+                break;
+
+            case 'x':
+                config->video = 1;
                 break;
 
             case 'P':
@@ -582,6 +592,13 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 }
                 config->debug_dir = optarg;
                 break;
+
+            case 8:
+                if (parse_float_arg(optarg, 0.1f, 240.0f, &config->video_fps) != 0) {
+                    fprintf(stderr, "Error: Invalid video FPS value '%s'\n", optarg);
+                    return -1;
+                }
+                break;
                 
             case 'r':
                 {
@@ -599,7 +616,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 break;
                 
             case 'V':
-                printf("printAscii v2.0.4\n");
+                printf("printAscii v2.1.1\n");
                 return 1; // Normal exit
                 
             case '?':
@@ -739,6 +756,21 @@ int validate_config(AppConfig* config) {
         return -1;
     }
 
+    if (config->video) {
+        if (config->output_path) {
+            fprintf(stderr, "Video mode currently supports terminal output only; remove --output\n");
+            return -1;
+        }
+
+        if (config->no_terminal_output) {
+            fprintf(stderr, "Video mode requires terminal output; remove --no-terminal-output\n");
+            return -1;
+        }
+    } else if (config->video_fps > 0.0f) {
+        fprintf(stderr, "--video-fps can only be used with --video\n");
+        return -1;
+    }
+
     if (config->braille && config->color) {
         fprintf(stderr, "Output mode conflict: braille output cannot be combined with ANSI color output\n");
         return -1;
@@ -806,6 +838,10 @@ void print_config(const AppConfig* config) {
     printf("Configuration:\n");
     printf("  Input file: %s\n", config->input_path);
     printf("  Output file: %s\n", config->output_path ? config->output_path : "(terminal only)");
+    printf("  Video mode: %s\n", config->video ? "Enabled" : "Disabled");
+    if (config->video_fps > 0.0f) {
+        printf("  Video FPS override: %.2f\n", config->video_fps);
+    }
     printf("  Debug directory: %s\n", config->debug_dir ? config->debug_dir : ".");
     printf("  Dimensions: %d x %d characters\n", config->width, config->height);
     printf("  ASCII gradient: \"%s\"\n", config->ramp.characters);

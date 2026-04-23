@@ -1,0 +1,108 @@
+#include "core/video_pipeline.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+#include "core/image.h"
+#include "core/image_pipeline.h"
+#include "io/video_loader.h"
+
+static int get_timestamp(struct timespec* ts) {
+    if (!ts) {
+        return -1;
+    }
+
+#if defined(CLOCK_MONOTONIC)
+    if (clock_gettime(CLOCK_MONOTONIC, ts) == 0) {
+        return 0;
+    }
+#endif
+
+    return (timespec_get(ts, TIME_UTC) == TIME_UTC) ? 0 : -1;
+}
+
+static double timespec_diff_seconds(const struct timespec* start, const struct timespec* end) {
+    double sec = (double)(end->tv_sec - start->tv_sec);
+    double nsec = (double)(end->tv_nsec - start->tv_nsec) / 1000000000.0;
+    return sec + nsec;
+}
+
+int video_pipeline_run_terminal(const AppConfig* config) {
+    if (!config) {
+        fprintf(stderr, "Video pipeline received NULL config\n");
+        return EXIT_FAILURE;
+    }
+
+    VideoStream stream;
+    if (video_stream_open(&stream, config->input_path, config->video_fps) != 0) {
+        fprintf(stderr, "Failed to open video stream\n");
+        return EXIT_FAILURE;
+    }
+
+    printf("\033[2J\033[H\033[?25l");
+    fflush(stdout);
+
+    const double frame_duration_seconds = (stream.fps > 0.0f) ? (1.0 / (double)stream.fps) : (1.0 / 24.0);
+    int exit_code = EXIT_SUCCESS;
+
+    while (1) {
+        struct timespec frame_start = {0};
+        int has_timing_start = (get_timestamp(&frame_start) == 0);
+
+        Image* frame = NULL;
+        int read_status = video_stream_read_frame(&stream, &frame);
+        if (read_status == 0) {
+            break;
+        }
+
+        if (read_status < 0 || !frame) {
+            fprintf(stderr, "Failed to decode video frame\n");
+            exit_code = EXIT_FAILURE;
+            break;
+        }
+
+        printf("\033[H");
+        ProcessingResult* result = image_pipeline_process(frame, config);
+
+        if (!result) {
+            fprintf(stderr, "Failed to process video frame\n");
+            image_free(frame);
+            exit_code = EXIT_FAILURE;
+            break;
+        }
+
+        if (result->status != PIPELINE_SUCCESS) {
+            fprintf(stderr, "Video frame processing failed: %s\n",
+                    result->error_message ? result->error_message : "Unknown error");
+            pipeline_free_result(result);
+            image_free(frame);
+            exit_code = EXIT_FAILURE;
+            break;
+        }
+
+        pipeline_free_result(result);
+        image_free(frame);
+        fflush(stdout);
+
+        if (has_timing_start) {
+            struct timespec frame_end = {0};
+            if (get_timestamp(&frame_end) == 0) {
+                double processing_time = timespec_diff_seconds(&frame_start, &frame_end);
+                double remaining = frame_duration_seconds - processing_time;
+
+                if (remaining > 0.0) {
+                    struct timespec sleep_time;
+                    sleep_time.tv_sec = (time_t)remaining;
+                    sleep_time.tv_nsec = (long)((remaining - (double)sleep_time.tv_sec) * 1000000000.0);
+                    nanosleep(&sleep_time, NULL);
+                }
+            }
+        }
+    }
+
+    video_stream_close(&stream);
+    printf("\033[?25h\n");
+    fflush(stdout);
+    return exit_code;
+}
