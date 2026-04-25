@@ -15,6 +15,7 @@ const AppConfig DEFAULT_CONFIG = {
     .output_path = NULL,
     .no_terminal_output = 0,
     .video = 0,
+    .video_loop = 0,
     .video_fps = 0.0f,
     .video_max_frames = 0,
     .width = 100,
@@ -179,6 +180,7 @@ struct option long_options[] = {
     {"output", required_argument, NULL, 'o'},
     {"no-terminal-output", no_argument, NULL, 'q'},
     {"video", no_argument, NULL, 'x'},
+    {"video-loop", no_argument, NULL, 'L'},
     {"video-fps", required_argument, NULL, 8},
     {"video-max-frames", required_argument, NULL, 9},
     {"preset", required_argument, NULL, 'P'},
@@ -219,6 +221,7 @@ void print_usage(const char* program_name) {
     printf("  -o, --output <file>        Output file (default: print to terminal)\n");
     printf("  -q, --no-terminal-output   Don't print the result to terminal\n\n");
     printf("  -x, --video                Treat input as video/GIF and render frames to terminal\n");
+    printf("  -L, --video-loop           Loop video playback until interrupted\n");
     printf("      --video-fps <f>        Playback FPS override for video mode (default: source FPS)\n\n");
     printf("      --video-max-frames <n> Stop after processing N frames (default: unlimited)\n\n");
 
@@ -332,7 +335,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     OutputModeSelection explicit_output_mode = OUTPUT_MODE_UNSET;
     EdgeModeSelection explicit_edge_mode = EDGE_MODE_UNSET;
     const PresetDefinition* selected_preset = NULL;
-    const char* short_options = "i:o:w:h:P:g:m:a:t:d:e:T:nr:qxbcBs::C::vV?";
+    const char* short_options = "i:o:w:h:P:g:m:a:t:d:e:T:nr:qxLbcBs::C::vV?";
     
     // Reset getopt state in case it was used elsewhere
     optind = 0;
@@ -353,6 +356,10 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
 
             case 'x':
                 config->video = 1;
+                break;
+
+            case 'L':
+                config->video_loop = 1;
                 break;
 
             case 'P':
@@ -777,6 +784,11 @@ int validate_config(AppConfig* config) {
             return -1;
         }
     } else {
+        if (config->video_loop) {
+            fprintf(stderr, "--video-loop can only be used with --video\n");
+            return -1;
+        }
+
         if (config->video_fps > 0.0f) {
             fprintf(stderr, "--video-fps can only be used with --video\n");
             return -1;
@@ -856,6 +868,9 @@ void print_config(const AppConfig* config) {
     printf("  Input file: %s\n", config->input_path);
     printf("  Output file: %s\n", config->output_path ? config->output_path : "(terminal only)");
     printf("  Video mode: %s\n", config->video ? "Enabled" : "Disabled");
+    if (config->video) {
+        printf("  Video loop: %s\n", config->video_loop ? "Enabled" : "Disabled");
+    }
     if (config->video_fps > 0.0f) {
         printf("  Video FPS override: %.2f\n", config->video_fps);
     }

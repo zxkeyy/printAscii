@@ -8,6 +8,7 @@ typedef struct {
     char* output_path;
     int no_terminal_output;
     int video;
+    int video_loop;
     float video_fps;
     int video_max_frames;
     int width;

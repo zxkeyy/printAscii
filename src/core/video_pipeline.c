@@ -76,23 +76,27 @@ int video_pipeline_run_terminal(const AppConfig* config) {
         return EXIT_FAILURE;
     }
 
-    VideoStream stream;
-    if (video_stream_open(&stream, config->input_path, config->video_fps) != 0) {
-        fprintf(stderr, "Failed to open video stream\n");
-        return EXIT_FAILURE;
-    }
-
     g_video_interrupted = 0;
     install_video_signal_handlers();
 
     printf("\033[2J\033[H\033[?25l");
     fflush(stdout);
 
-    const double frame_duration_seconds = (stream.fps > 0.0f) ? (1.0 / (double)stream.fps) : (1.0 / 24.0);
     int exit_code = EXIT_SUCCESS;
     int processed_frames = 0;
 
-    while (1) {
+    while (!g_video_interrupted) {
+        VideoStream stream;
+        if (video_stream_open(&stream, config->input_path, config->video_fps) != 0) {
+            fprintf(stderr, "Failed to open video stream\n");
+            exit_code = EXIT_FAILURE;
+            break;
+        }
+
+        const double frame_duration_seconds = (stream.fps > 0.0f) ? (1.0 / (double)stream.fps) : (1.0 / 24.0);
+        int reached_eof = 0;
+
+        while (1) {
         if (g_video_interrupted) {
             break;
         }
@@ -103,6 +107,7 @@ int video_pipeline_run_terminal(const AppConfig* config) {
         Image* frame = NULL;
         int read_status = video_stream_read_frame(&stream, &frame);
         if (read_status == 0) {
+            reached_eof = 1;
             break;
         }
 
@@ -157,9 +162,24 @@ int video_pipeline_run_terminal(const AppConfig* config) {
                 }
             }
         }
+
+        }
+
+        video_stream_close(&stream);
+
+        if (exit_code != EXIT_SUCCESS || g_video_interrupted) {
+            break;
+        }
+
+        if (config->video_max_frames > 0 && processed_frames >= config->video_max_frames) {
+            break;
+        }
+
+        if (!config->video_loop || !reached_eof) {
+            break;
+        }
     }
 
-    video_stream_close(&stream);
     restore_video_signal_handlers();
     printf("\033[?25h\n");
     fflush(stdout);
