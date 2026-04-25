@@ -9,6 +9,7 @@ typedef struct {
     int no_terminal_output;
     int video;
     float video_fps;
+    int video_max_frames;
     int width;
     int height;
     int alpha;

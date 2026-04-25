@@ -16,6 +16,7 @@ const AppConfig DEFAULT_CONFIG = {
     .no_terminal_output = 0,
     .video = 0,
     .video_fps = 0.0f,
+    .video_max_frames = 0,
     .width = 100,
     .height = 0,
     .alpha = 0,
@@ -179,6 +180,7 @@ struct option long_options[] = {
     {"no-terminal-output", no_argument, NULL, 'q'},
     {"video", no_argument, NULL, 'x'},
     {"video-fps", required_argument, NULL, 8},
+    {"video-max-frames", required_argument, NULL, 9},
     {"preset", required_argument, NULL, 'P'},
     {"ascii-gradient", required_argument, NULL, 'g'},
     {"mode", required_argument, NULL, 'm'},
@@ -218,6 +220,7 @@ void print_usage(const char* program_name) {
     printf("  -q, --no-terminal-output   Don't print the result to terminal\n\n");
     printf("  -x, --video                Treat input as video/GIF and render frames to terminal\n");
     printf("      --video-fps <f>        Playback FPS override for video mode (default: source FPS)\n\n");
+    printf("      --video-max-frames <n> Stop after processing N frames (default: unlimited)\n\n");
 
     printf("Preset Options:\n");
     printf("  -P, --preset <name>        Apply a processing preset (override with explicit flags)\n");
@@ -599,6 +602,13 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     return -1;
                 }
                 break;
+
+            case 9:
+                if (parse_numeric_arg(optarg, 1, 100000000, &config->video_max_frames) != 0) {
+                    fprintf(stderr, "Error: Invalid video max frame count '%s'\n", optarg);
+                    return -1;
+                }
+                break;
                 
             case 'r':
                 {
@@ -766,9 +776,16 @@ int validate_config(AppConfig* config) {
             fprintf(stderr, "Video mode requires terminal output; remove --no-terminal-output\n");
             return -1;
         }
-    } else if (config->video_fps > 0.0f) {
-        fprintf(stderr, "--video-fps can only be used with --video\n");
-        return -1;
+    } else {
+        if (config->video_fps > 0.0f) {
+            fprintf(stderr, "--video-fps can only be used with --video\n");
+            return -1;
+        }
+
+        if (config->video_max_frames > 0) {
+            fprintf(stderr, "--video-max-frames can only be used with --video\n");
+            return -1;
+        }
     }
 
     if (config->braille && config->color) {
@@ -841,6 +858,9 @@ void print_config(const AppConfig* config) {
     printf("  Video mode: %s\n", config->video ? "Enabled" : "Disabled");
     if (config->video_fps > 0.0f) {
         printf("  Video FPS override: %.2f\n", config->video_fps);
+    }
+    if (config->video_max_frames > 0) {
+        printf("  Video max frames: %d\n", config->video_max_frames);
     }
     printf("  Debug directory: %s\n", config->debug_dir ? config->debug_dir : ".");
     printf("  Dimensions: %d x %d characters\n", config->width, config->height);

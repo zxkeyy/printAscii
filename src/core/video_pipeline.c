@@ -1,12 +1,54 @@
 #include "core/video_pipeline.h"
 
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "core/image.h"
 #include "core/image_pipeline.h"
 #include "io/video_loader.h"
+
+static volatile sig_atomic_t g_video_interrupted = 0;
+static void (*g_old_sigint_handler)(int) = SIG_DFL;
+static void (*g_old_sigterm_handler)(int) = SIG_DFL;
+static int g_signal_handlers_installed = 0;
+
+static void restore_cursor_stdout(void) {
+    const char* show_cursor = "\033[?25h";
+    write(STDOUT_FILENO, show_cursor, 6);
+}
+
+static void video_interrupt_handler(int signal_number) {
+    (void)signal_number;
+    g_video_interrupted = 1;
+    restore_cursor_stdout();
+}
+
+static void install_video_signal_handlers(void) {
+    g_old_sigint_handler = signal(SIGINT, video_interrupt_handler);
+    g_old_sigterm_handler = signal(SIGTERM, video_interrupt_handler);
+
+    if (g_old_sigint_handler != SIG_ERR && g_old_sigterm_handler != SIG_ERR) {
+        g_signal_handlers_installed = 1;
+        return;
+    }
+
+    signal(SIGINT, g_old_sigint_handler);
+    signal(SIGTERM, g_old_sigterm_handler);
+}
+
+static void restore_video_signal_handlers(void) {
+    if (!g_signal_handlers_installed) {
+        return;
+    }
+
+    signal(SIGINT, g_old_sigint_handler);
+    signal(SIGTERM, g_old_sigterm_handler);
+    g_signal_handlers_installed = 0;
+}
 
 static int get_timestamp(struct timespec* ts) {
     if (!ts) {
@@ -40,13 +82,21 @@ int video_pipeline_run_terminal(const AppConfig* config) {
         return EXIT_FAILURE;
     }
 
+    g_video_interrupted = 0;
+    install_video_signal_handlers();
+
     printf("\033[2J\033[H\033[?25l");
     fflush(stdout);
 
     const double frame_duration_seconds = (stream.fps > 0.0f) ? (1.0 / (double)stream.fps) : (1.0 / 24.0);
     int exit_code = EXIT_SUCCESS;
+    int processed_frames = 0;
 
     while (1) {
+        if (g_video_interrupted) {
+            break;
+        }
+
         struct timespec frame_start = {0};
         int has_timing_start = (get_timestamp(&frame_start) == 0);
 
@@ -57,6 +107,9 @@ int video_pipeline_run_terminal(const AppConfig* config) {
         }
 
         if (read_status < 0 || !frame) {
+            if (g_video_interrupted) {
+                break;
+            }
             fprintf(stderr, "Failed to decode video frame\n");
             exit_code = EXIT_FAILURE;
             break;
@@ -83,7 +136,12 @@ int video_pipeline_run_terminal(const AppConfig* config) {
 
         pipeline_free_result(result);
         image_free(frame);
+        processed_frames++;
         fflush(stdout);
+
+        if (config->video_max_frames > 0 && processed_frames >= config->video_max_frames) {
+            break;
+        }
 
         if (has_timing_start) {
             struct timespec frame_end = {0};
@@ -102,6 +160,7 @@ int video_pipeline_run_terminal(const AppConfig* config) {
     }
 
     video_stream_close(&stream);
+    restore_video_signal_handlers();
     printf("\033[?25h\n");
     fflush(stdout);
     return exit_code;

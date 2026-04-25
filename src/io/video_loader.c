@@ -180,7 +180,7 @@ int video_stream_open(VideoStream* stream, const char* input_path, float fps_ove
     int written = snprintf(
         command,
         sizeof(command),
-        "ffmpeg -hide_banner -loglevel error -i '%s' -f rawvideo -pix_fmt rgb24 -vsync 0 -",
+        "ffmpeg -hide_banner -loglevel fatal -nostats -i '%s' -f rawvideo -pix_fmt rgb24 -vsync 0 -",
         escaped_path
     );
     free(escaped_path);
