@@ -3,6 +3,8 @@
 #include <string.h>
 #include <getopt.h>
 #include <errno.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 #include "core/config.h"
 
 const AsciiRamp DEFAULT_RAMP = {
@@ -179,6 +181,9 @@ struct option long_options[] = {
     {"input", required_argument, NULL, 'i'},
     {"output", required_argument, NULL, 'o'},
     {"no-terminal-output", no_argument, NULL, 'q'},
+    {"fit-terminal", no_argument, NULL, 'F'},
+    {"fit-terminal-w", no_argument, NULL, 'W'},
+    {"fit-terminal-h", no_argument, NULL, 'H'},
     {"video", no_argument, NULL, 'x'},
     {"video-loop", no_argument, NULL, 'L'},
     {"video-fps", required_argument, NULL, 8},
@@ -219,7 +224,10 @@ void print_usage(const char* program_name) {
     printf("Input/Output Options:\n");
     printf("  -i, --input <file>         Input image file (JPG, PNG, TGA, BMP, etc.)\n");
     printf("  -o, --output <file>        Output file (default: print to terminal)\n");
-    printf("  -q, --no-terminal-output   Don't print the result to terminal\n\n");
+    printf("  -q, --no-terminal-output   Don't print the result to terminal\n");
+    printf("  -F, --fit-terminal         Automatically size output to fit the terminal window\n");
+    printf("  -W, --fit-terminal-w       Automatically size output to fit terminal width (keep aspect ratio)\n");
+    printf("  -H, --fit-terminal-h       Automatically size output to fit terminal height (keep aspect ratio)\n\n");
     printf("  -x, --video                Treat input as video/GIF and render frames to terminal\n");
     printf("  -L, --video-loop           Loop video playback until interrupted\n");
     printf("      --video-fps <f>        Playback FPS override for video mode (default: source FPS)\n\n");
@@ -335,7 +343,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     OutputModeSelection explicit_output_mode = OUTPUT_MODE_UNSET;
     EdgeModeSelection explicit_edge_mode = EDGE_MODE_UNSET;
     const PresetDefinition* selected_preset = NULL;
-    const char* short_options = "i:o:w:h:P:g:m:a:t:d:e:T:nr:qxLbcBs::C::vV?";
+    const char* short_options = "i:o:w:h:P:g:m:a:t:d:e:T:nr:qxLFWHbcBs::C::vV?";
     
     // Reset getopt state in case it was used elsewhere
     optind = 0;
@@ -352,6 +360,50 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 
             case 'q':
                 config->no_terminal_output = 1;
+                break;
+
+            case 'F':
+                if (isatty(STDOUT_FILENO)) {
+                    struct winsize w;
+                    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != -1) {
+                        config->width = w.ws_col;
+                        config->height = w.ws_row > 1 ? w.ws_row - 1 : 0;
+                        width_set = 1;
+                        height_set = 1;
+                    } else {
+                        fprintf(stderr, "Warning: Could not determine terminal size\n");
+                    }
+                } else {
+                    fprintf(stderr, "Warning: --fit-terminal used but output is not a terminal\n");
+                }
+                break;
+
+            case 'W':
+                if (isatty(STDOUT_FILENO)) {
+                    struct winsize w;
+                    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != -1) {
+                        config->width = w.ws_col;
+                        width_set = 1;
+                    } else {
+                        fprintf(stderr, "Warning: Could not determine terminal size\n");
+                    }
+                } else {
+                    fprintf(stderr, "Warning: --fit-terminal-w used but output is not a terminal\n");
+                }
+                break;
+
+            case 'H':
+                if (isatty(STDOUT_FILENO)) {
+                    struct winsize w;
+                    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != -1) {
+                        config->height = w.ws_row > 1 ? w.ws_row - 1 : 0;
+                        height_set = 1;
+                    } else {
+                        fprintf(stderr, "Warning: Could not determine terminal size\n");
+                    }
+                } else {
+                    fprintf(stderr, "Warning: --fit-terminal-h used but output is not a terminal\n");
+                }
                 break;
 
             case 'x':
