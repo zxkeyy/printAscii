@@ -14,7 +14,7 @@
 static volatile sig_atomic_t g_video_interrupted = 0;
 static void (*g_old_sigint_handler)(int) = SIG_DFL;
 static void (*g_old_sigterm_handler)(int) = SIG_DFL;
-static int g_signal_handlers_installed = 0;
+static volatile sig_atomic_t g_signal_handlers_installed = 0;
 
 static void restore_cursor_stdout(void) {
     const char* show_cursor = "\033[?25h";
@@ -95,86 +95,93 @@ int video_pipeline_run_terminal(const AppConfig* config) {
 
         const double frame_duration_seconds = (stream.fps > 0.0f) ? (1.0 / (double)stream.fps) : (1.0 / 24.0);
         int reached_eof = 0;
+        int stream_error = 0;
 
-        while (1) {
-        if (g_video_interrupted) {
-            break;
-        }
+        // Process all frames from current stream
+        while (!g_video_interrupted && !stream_error) {
+            struct timespec frame_start = {0};
+            int has_timing_start = (get_timestamp(&frame_start) == 0);
 
-        struct timespec frame_start = {0};
-        int has_timing_start = (get_timestamp(&frame_start) == 0);
-
-        Image* frame = NULL;
-        int read_status = video_stream_read_frame(&stream, &frame);
-        if (read_status == 0) {
-            reached_eof = 1;
-            break;
-        }
-
-        if (read_status < 0 || !frame) {
-            if (g_video_interrupted) {
+            Image* frame = NULL;
+            int read_status = video_stream_read_frame(&stream, &frame);
+            
+            // End of file - normal completion
+            if (read_status == 0) {
+                reached_eof = 1;
                 break;
             }
-            fprintf(stderr, "Failed to decode video frame\n");
-            exit_code = EXIT_FAILURE;
-            break;
-        }
 
-        printf("\033[H");
-        ProcessingResult* result = image_pipeline_process(frame, config);
+            // Frame read error
+            if (read_status < 0 || !frame) {
+                fprintf(stderr, "Failed to decode video frame %d\n", processed_frames + 1);
+                exit_code = EXIT_FAILURE;
+                stream_error = 1;
+                break;
+            }
 
-        if (!result) {
-            fprintf(stderr, "Failed to process video frame\n");
-            image_free(frame);
-            exit_code = EXIT_FAILURE;
-            break;
-        }
+            printf("\033[H");
+            ProcessingResult* result = image_pipeline_process(frame, config);
 
-        if (result->status != PIPELINE_SUCCESS) {
-            fprintf(stderr, "Video frame processing failed: %s\n",
-                    result->error_message ? result->error_message : "Unknown error");
+            if (!result) {
+                fprintf(stderr, "Failed to create processing result for frame %d\n", processed_frames + 1);
+                image_free(frame);
+                exit_code = EXIT_FAILURE;
+                stream_error = 1;
+                break;
+            }
+
+            if (result->status != PIPELINE_SUCCESS) {
+                fprintf(stderr, "Frame %d processing failed: %s\n",
+                        processed_frames + 1,
+                        result->error_message ? result->error_message : "Unknown error");
+                pipeline_free_result(result);
+                image_free(frame);
+                exit_code = EXIT_FAILURE;
+                stream_error = 1;
+                break;
+            }
+
             pipeline_free_result(result);
             image_free(frame);
-            exit_code = EXIT_FAILURE;
-            break;
-        }
+            processed_frames++;
+            fflush(stdout);
 
-        pipeline_free_result(result);
-        image_free(frame);
-        processed_frames++;
-        fflush(stdout);
+            // Check frame limit
+            if (config->video_max_frames > 0 && processed_frames >= config->video_max_frames) {
+                break;
+            }
 
-        if (config->video_max_frames > 0 && processed_frames >= config->video_max_frames) {
-            break;
-        }
+            // Maintain playback speed
+            if (has_timing_start) {
+                struct timespec frame_end = {0};
+                if (get_timestamp(&frame_end) == 0) {
+                    double processing_time = timespec_diff_seconds(&frame_start, &frame_end);
+                    double remaining = frame_duration_seconds - processing_time;
 
-        if (has_timing_start) {
-            struct timespec frame_end = {0};
-            if (get_timestamp(&frame_end) == 0) {
-                double processing_time = timespec_diff_seconds(&frame_start, &frame_end);
-                double remaining = frame_duration_seconds - processing_time;
-
-                if (remaining > 0.0) {
-                    struct timespec sleep_time;
-                    sleep_time.tv_sec = (time_t)remaining;
-                    sleep_time.tv_nsec = (long)((remaining - (double)sleep_time.tv_sec) * 1000000000.0);
-                    nanosleep(&sleep_time, NULL);
+                    if (remaining > 0.0) {
+                        struct timespec sleep_time;
+                        sleep_time.tv_sec = (time_t)remaining;
+                        sleep_time.tv_nsec = (long)((remaining - (double)sleep_time.tv_sec) * 1000000000.0);
+                        nanosleep(&sleep_time, NULL);
+                    }
                 }
             }
         }
 
-        }
-
+        // Always close stream, even on errors
         video_stream_close(&stream);
 
+        // Exit on error or user interrupt
         if (exit_code != EXIT_SUCCESS || g_video_interrupted) {
             break;
         }
 
+        // Exit if frame limit reached
         if (config->video_max_frames > 0 && processed_frames >= config->video_max_frames) {
             break;
         }
 
+        // Exit if looping disabled or EOF not reached
         if (!config->video_loop || !reached_eof) {
             break;
         }
