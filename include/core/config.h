@@ -29,6 +29,7 @@ typedef struct {
     int canny_edge_detection_high_threshold;
     int canny_edge_detection_low_threshold;
     int braille;
+    int halfblock;
     int verbose;
     char* debug_dir;
     float font_aspect_ratio; // Width to height ratio of the font

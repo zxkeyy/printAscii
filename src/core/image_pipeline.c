@@ -7,6 +7,7 @@
 #include "preprocessing/dither.h"
 #include "conversion/image_to_ansi.h"
 #include "conversion/image_to_braille.h"
+#include "conversion/image_to_halfblock.h"
 #include "conversion/intensity_map.h"
 #include "io/image_saver.h"
 #include "utilities/debug_artifacts.h"
@@ -154,7 +155,9 @@ char* pipeline_convert_to_output(const Image* img, const AppConfig* config) {
     // Cast away const since your conversion functions don't expect const
     Image* mutable_img = (Image*)img;
     
-    if (config->color) {
+    if (config->halfblock) {
+        return image_to_halfblock(mutable_img);
+    } else if (config->color) {
         return image_to_ansi(mutable_img, config->tiling_text, 
                            (RGBColor){config->alpha, config->alpha, config->alpha}, 
                            config->color_background_mode);
@@ -205,6 +208,11 @@ void pipeline_calculate_dimensions(AppConfig* config, const Image* img) {
     }
     if (config->height == 0) {
         config->height = (int)(((float)config->width / img->width * img->height) * config->font_aspect_ratio);
+    }
+
+    // Half blocks require two vertical pixels for every output character
+    if (config->halfblock) {
+        config->height *= 2;
     }
 }
 

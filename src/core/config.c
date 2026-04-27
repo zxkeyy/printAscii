@@ -38,6 +38,7 @@ const AppConfig DEFAULT_CONFIG = {
     .canny_edge_detection_high_threshold = 120,
     .canny_edge_detection_low_threshold = 50,
     .braille = 0,
+    .halfblock = 0,
     .font_aspect_ratio = 0.45,
     .verbose = 0,
     .debug_dir = ".",
@@ -57,7 +58,8 @@ typedef enum {
     OUTPUT_MODE_ASCII,
     OUTPUT_MODE_BRAILLE,
     OUTPUT_MODE_ANSI,
-    OUTPUT_MODE_ANSI_BG
+    OUTPUT_MODE_ANSI_BG,
+    OUTPUT_MODE_HALFBLOCK
 } OutputModeSelection;
 
 typedef enum {
@@ -240,7 +242,7 @@ void print_usage(const char* program_name) {
     
     printf("Display Options:\n");
     printf("  -g, --ascii-gradient <str> ASCII gradient (default: ' .:-=+*#@&8B$@')\n");
-    printf("  -m, --mode <type>          Output mode: ascii, braille, ansi, ansi-bg (default: ascii)\n");
+    printf("  -m, --mode <type>          Output mode: ascii, braille, ansi, ansi-bg, halfblock (default: ascii)\n");
     printf("  -w, --width <n>            Output width in characters (default: 100)\n");
     printf("                             if only height is specified, width will be calculated to keep image aspect ratio\n");
     printf("                             Use -1 to keep source image width\n");
@@ -454,8 +456,10 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     selected_output_mode = OUTPUT_MODE_ANSI;
                 } else if (strcmp(optarg, "ansi-bg") == 0) {
                     selected_output_mode = OUTPUT_MODE_ANSI_BG;
+                } else if (strcmp(optarg, "halfblock") == 0) {
+                    selected_output_mode = OUTPUT_MODE_HALFBLOCK;
                 } else {
-                    fprintf(stderr, "Error: Invalid mode '%s'. Expected one of: ascii, braille, ansi, ansi-bg\n", optarg);
+                    fprintf(stderr, "Error: Invalid mode '%s'. Expected one of: ascii, braille, ansi, ansi-bg, halfblock\n", optarg);
                     return -1;
                 }
                 explicit_mode_set = 1;
@@ -751,6 +755,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
 
     if (selected_output_mode != OUTPUT_MODE_UNSET) {
         config->braille = 0;
+        config->halfblock = 0;
         config->color = 0;
         config->color_background_mode = 0;
 
@@ -761,6 +766,9 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
         } else if (selected_output_mode == OUTPUT_MODE_ANSI_BG) {
             config->color = 1;
             config->color_background_mode = 1;
+        } else if (selected_output_mode == OUTPUT_MODE_HALFBLOCK) {
+            config->halfblock = 1;
+            config->color = 1; // Needs color output for FG/BG combo
         }
     }
 
@@ -816,6 +824,11 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
         config->width = 0; // 0 means keep aspect ratio
     }
     
+    // Auto-adjust font aspect ratio for halfblock mode if not explicitly set
+    if (config->halfblock && config->font_aspect_ratio == 0.45f) {
+        config->font_aspect_ratio = 0.5f; // Halfblocks effectively double vertical resolution
+    }
+
     return 0;
 }
 
