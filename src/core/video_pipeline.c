@@ -6,6 +6,8 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <termios.h>
+#include <sys/select.h>
 
 #include "core/image.h"
 #include "core/image_pipeline.h"
@@ -15,6 +17,29 @@ static volatile sig_atomic_t g_video_interrupted = 0;
 static void (*g_old_sigint_handler)(int) = SIG_DFL;
 static void (*g_old_sigterm_handler)(int) = SIG_DFL;
 static volatile sig_atomic_t g_signal_handlers_installed = 0;
+
+static struct termios g_old_termios;
+static volatile sig_atomic_t g_terminal_state_saved = 0;
+
+static void disable_raw_mode(void) {
+    if (!g_terminal_state_saved) return;
+    
+    tcsetattr(STDIN_FILENO, TCSANOW, &g_old_termios);
+    g_terminal_state_saved = 0;
+}
+
+static void enable_raw_mode(void) {
+    if (!isatty(STDIN_FILENO)) return;
+    
+    if (tcgetattr(STDIN_FILENO, &g_old_termios) == 0) {
+        struct termios raw = g_old_termios;
+        raw.c_lflag &= ~(ECHO | ICANON);
+        
+        tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+        g_terminal_state_saved = 1;
+        atexit(disable_raw_mode);
+    }
+}
 
 static void restore_cursor_stdout(void) {
     const char* show_cursor = "\033[?25h";
@@ -78,6 +103,7 @@ int video_pipeline_run_terminal(const AppConfig* config) {
 
     g_video_interrupted = 0;
     install_video_signal_handlers();
+    enable_raw_mode();
 
     printf("\033[2J\033[H\033[?25l");
     fflush(stdout);
@@ -96,9 +122,53 @@ int video_pipeline_run_terminal(const AppConfig* config) {
         const double frame_duration_seconds = (stream.fps > 0.0f) ? (1.0 / (double)stream.fps) : (1.0 / 24.0);
         int reached_eof = 0;
         int stream_error = 0;
+        int is_paused = 0;
 
         // Process all frames from current stream
         while (!g_video_interrupted && !stream_error) {
+            int advance_frame = !is_paused;
+
+            // Handle interactive input — drain all buffered keypresses, but only
+            // honour one space toggle per frame cycle to prevent double-toggling
+            // when two spaces arrive in the same batch.
+            int space_seen = 0;
+            while (!g_video_interrupted) {
+                fd_set read_fds;
+                FD_ZERO(&read_fds);
+                FD_SET(STDIN_FILENO, &read_fds);
+                struct timeval timeout = {0, 0};
+                
+                if (select(STDIN_FILENO + 1, &read_fds, NULL, NULL, &timeout) != 1) {
+                    break;
+                }
+
+                char c;
+                if (read(STDIN_FILENO, &c, 1) != 1) {
+                    break;
+                }
+
+                if (c == 'q' || c == 'Q' || c == 27) { // 27 is ESC
+                    g_video_interrupted = 1;
+                    advance_frame = 0;
+                } else if (c == ' ' && !space_seen) {
+                    space_seen = 1;
+                    is_paused = !is_paused;
+                    advance_frame = !is_paused; // one frame on unpause
+                } else if ((c == '.' || c == '>') && is_paused) {
+                    advance_frame = 1; // frame step
+                }
+            }
+
+            if (g_video_interrupted) break;
+
+            if (!advance_frame) {
+                struct timespec pause_sleep;
+                pause_sleep.tv_sec = 0;
+                pause_sleep.tv_nsec = 10000000; // 10ms CPU sleep while paused
+                nanosleep(&pause_sleep, NULL);
+                continue;
+            }
+
             struct timespec frame_start = {0};
             int has_timing_start = (get_timestamp(&frame_start) == 0);
 
@@ -188,6 +258,7 @@ int video_pipeline_run_terminal(const AppConfig* config) {
     }
 
     restore_video_signal_handlers();
+    disable_raw_mode();
     printf("\033[?25h\n");
     fflush(stdout);
     return exit_code;
