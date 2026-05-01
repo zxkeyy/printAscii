@@ -4,6 +4,7 @@
 #include "core/ascii_ramp.h"
 
 typedef struct {
+    char* play_cast_path;
     char* input_path;
     char* output_path;
     char* export_cast_path;

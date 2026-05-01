@@ -13,6 +13,7 @@ const AsciiRamp DEFAULT_RAMP = {
 };
 
 const AppConfig DEFAULT_CONFIG = {
+    .play_cast_path = NULL,
     .input_path = NULL,
     .output_path = NULL,
     .export_cast_path = NULL,
@@ -181,6 +182,7 @@ static void print_available_presets(void) {
 
 
 struct option long_options[] = {
+    {"play-cast", required_argument, NULL, 'p'},
     {"input", required_argument, NULL, 'i'},
     {"output", required_argument, NULL, 'o'},
     {"export-cast", required_argument, NULL, 'E'},
@@ -222,10 +224,12 @@ struct option long_options[] = {
 };
 
 void print_usage(const char* program_name) {
-    printf("Usage: %s -i <input> [options]\n\n", program_name);
+    printf("Usage: %s -i <input> [options]\n", program_name);
+    printf("   or: %s -p <cast_file>\n\n", program_name);
     printf("Image to ASCII/ANSI/Unicode Art Converter\n\n");
     
     printf("Input/Output Options:\n");
+    printf("  -p, --play-cast <file>     Play an Asciinema v2 (.cast) file directly in terminal\n");
     printf("  -i, --input <file>         Input image file (JPG, PNG, TGA, BMP, etc.)\n");
     printf("  -o, --output <file>        Output file (default: print to terminal)\n");
     printf("  -E, --export-cast <file>   Export video playback to an Asciinema v2 (.cast) file\n");
@@ -276,6 +280,7 @@ void print_usage(const char* program_name) {
     printf("  --help                     Display this help message\n\n");
     
     printf("Examples:\n");
+    printf("  %s -p video.cast                     # Play an exported video\n", program_name);
     printf("  %s -i input.jpg                      # Basic conversion\n", program_name);
     printf("  %s -i input.png -o output.txt -w 80  # Custom width output to file\n", program_name);
     printf("  %s -i input.jpg --mode braille --invert  # Braille with inverted colors\n", program_name);
@@ -348,13 +353,17 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     OutputModeSelection explicit_output_mode = OUTPUT_MODE_UNSET;
     EdgeModeSelection explicit_edge_mode = EDGE_MODE_UNSET;
     const PresetDefinition* selected_preset = NULL;
-    const char* short_options = "i:o:E:w:h:P:g:m:a:t:d:e:T:nr:qxLFWHbcBs::C::vV?";
+    const char* short_options = "p:i:o:E:w:h:P:g:m:a:t:d:e:T:nr:qxLFWHbcBs::C::vV?";
     
     // Reset getopt state in case it was used elsewhere
     optind = 0;
     
     while ((opt = getopt_long(argc, argv, short_options, long_options, &option_index)) != -1) {
         switch (opt) {
+            case 'p':
+                config->play_cast_path = optarg;
+                break;
+                
             case 'i':
                 config->input_path = optarg;
                 break;
@@ -840,6 +849,10 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
 }
 
 int validate_config(AppConfig* config) {
+    if (config->play_cast_path) {
+        return 0; // Skip other validations if we are just playing a cast
+    }
+
     if (!config->input_path) {
         fprintf(stderr, "Input path is required\n");
         return -1;

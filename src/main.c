@@ -8,6 +8,7 @@
 #include "core/video_pipeline.h"
 #include "io/image_loader.h"
 #include "io/image_saver.h"
+#include "io/cast_player.h"
 #include "utilities/debug_artifacts.h"
 #include "utilities/print_utf16_string.h"
 
@@ -24,6 +25,10 @@ int main(int argc, char *argv[]) {
 
     if (validate_config(&config) != 0) {
         return EXIT_FAILURE;
+    }
+
+    if (config.play_cast_path) {
+        return cast_player_play(config.play_cast_path) == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     if (config.video) {
