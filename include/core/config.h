@@ -6,6 +6,7 @@
 typedef struct {
     char* input_path;
     char* output_path;
+    char* export_cast_path;
     int no_terminal_output;
     int video;
     int video_loop;

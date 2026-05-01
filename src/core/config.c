@@ -15,6 +15,7 @@ const AsciiRamp DEFAULT_RAMP = {
 const AppConfig DEFAULT_CONFIG = {
     .input_path = NULL,
     .output_path = NULL,
+    .export_cast_path = NULL,
     .no_terminal_output = 0,
     .video = 0,
     .video_loop = 0,
@@ -182,6 +183,7 @@ static void print_available_presets(void) {
 struct option long_options[] = {
     {"input", required_argument, NULL, 'i'},
     {"output", required_argument, NULL, 'o'},
+    {"export-cast", required_argument, NULL, 'E'},
     {"no-terminal-output", no_argument, NULL, 'q'},
     {"fit-terminal", no_argument, NULL, 'F'},
     {"fit-terminal-w", no_argument, NULL, 'W'},
@@ -226,6 +228,7 @@ void print_usage(const char* program_name) {
     printf("Input/Output Options:\n");
     printf("  -i, --input <file>         Input image file (JPG, PNG, TGA, BMP, etc.)\n");
     printf("  -o, --output <file>        Output file (default: print to terminal)\n");
+    printf("  -E, --export-cast <file>   Export video playback to an Asciinema v2 (.cast) file\n");
     printf("  -q, --no-terminal-output   Don't print the result to terminal\n");
     printf("  -F, --fit-terminal         Automatically size output to fit the terminal window\n");
     printf("  -W, --fit-terminal-w       Automatically size output to fit terminal width (keep aspect ratio)\n");
@@ -345,7 +348,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     OutputModeSelection explicit_output_mode = OUTPUT_MODE_UNSET;
     EdgeModeSelection explicit_edge_mode = EDGE_MODE_UNSET;
     const PresetDefinition* selected_preset = NULL;
-    const char* short_options = "i:o:w:h:P:g:m:a:t:d:e:T:nr:qxLFWHbcBs::C::vV?";
+    const char* short_options = "i:o:E:w:h:P:g:m:a:t:d:e:T:nr:qxLFWHbcBs::C::vV?";
     
     // Reset getopt state in case it was used elsewhere
     optind = 0;
@@ -358,6 +361,10 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                 
             case 'o':
                 config->output_path = optarg;
+                break;
+                
+            case 'E':
+                config->export_cast_path = optarg;
                 break;
                 
             case 'q':

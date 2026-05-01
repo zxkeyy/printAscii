@@ -12,6 +12,7 @@
 #include "core/image.h"
 #include "core/image_pipeline.h"
 #include "io/video_loader.h"
+#include "io/cast_exporter.h"
 
 static volatile sig_atomic_t g_video_interrupted = 0;
 static void (*g_old_sigint_handler)(int) = SIG_DFL;
@@ -110,6 +111,9 @@ int video_pipeline_run_terminal(const AppConfig* config) {
 
     int exit_code = EXIT_SUCCESS;
     int processed_frames = 0;
+    
+    CastExporter* cast_exp = NULL;
+    double export_time_offset = 0.0;
 
     while (!g_video_interrupted) {
         VideoStream stream;
@@ -191,6 +195,28 @@ int video_pipeline_run_terminal(const AppConfig* config) {
 
             printf("\033[H");
             ProcessingResult* result = image_pipeline_process(frame, config);
+            
+            if (config->export_cast_path && !cast_exp && processed_frames == 0) {
+                int w = config->width > 0 ? config->width : 100;
+                int h = config->height > 0 ? config->height : 40;
+                if (config->halfblock) h *= 2; 
+                cast_exp = cast_exporter_init(config->export_cast_path, w, h);
+                if (!cast_exp) {
+                    fprintf(stderr, "Warning: Failed to open cast export file\n");
+                }
+            }
+            
+            if (cast_exp && result && result->status == PIPELINE_SUCCESS) {
+                size_t combined_sz = result->output_length + 20;
+                char* combined = malloc(combined_sz);
+                if (combined) {
+                    // Start each frame by resetting cursor to home natively inside the asciinema playback window
+                    snprintf(combined, combined_sz, "\033[H%s", result->output_data);
+                    cast_exporter_write_frame(cast_exp, export_time_offset, combined);
+                    free(combined);
+                }
+                export_time_offset += frame_duration_seconds;
+            }
 
             if (!result) {
                 fprintf(stderr, "Failed to create processing result for frame %d\n", processed_frames + 1);
@@ -255,6 +281,10 @@ int video_pipeline_run_terminal(const AppConfig* config) {
         if (!config->video_loop || !reached_eof) {
             break;
         }
+    }
+
+    if (cast_exp) {
+        cast_exporter_close(cast_exp);
     }
 
     restore_video_signal_handlers();
