@@ -75,6 +75,25 @@ char* image_to_alpha_ansi(Image* img, char* tiling_string, AsciiRamp ramp, int b
 
     size_t pos = 0; // To track osition in output buffer
 
+    // Calculate total ramp length once
+    int ramp_length = ascii_ramp_total_chars(ramp.characters);
+    
+    // Pre-calculate ramp character positions and lengths to avoid quadratic O(N^2) overhead
+    int ramp_char_pos[1024];
+    int ramp_char_len[1024];
+    int current_pos = 0;
+    for (int i = 0; i < ramp_length; i++) {
+        unsigned char c = (unsigned char)ramp.characters[current_pos];
+        int len = 1;
+        if ((c & 0xE0) == 0xC0) len = 2;
+        else if ((c & 0xF0) == 0xE0) len = 3;
+        else if ((c & 0xF8) == 0xF0) len = 4;
+        
+        ramp_char_pos[i] = current_pos;
+        ramp_char_len[i] = len;
+        current_pos += len;
+    }
+
     for (int y = 0; y < img->height; y++) {
         for(int x = 0; x < img->width; x++) {
             const RGBAColor color = get_rgba_color(img, x, y);
@@ -89,17 +108,12 @@ char* image_to_alpha_ansi(Image* img, char* tiling_string, AsciiRamp ramp, int b
                 written = snprintf(&output[pos], buffer_size - pos, format_string, color.r, color.g, color.b, tiling_string[index++ % tiling_string_length]);
             }else{
                 // Use ramp for semi-transparent pixels
-                // Get position and length of UTF-8 character in the ramp
-                int ramp_index = color.a * (ramp.length-1) / 255;
-                int char_pos = 0;
-                for (int i = 0; i < ramp_index; i++) {
-                    int char_len = ascii_ramp_char_length(ramp.characters, i);
-                    char_pos += char_len;
-                }
+                int ramp_index = color.a * (ramp_length-1) / 255;
+                int char_pos = ramp_char_pos[ramp_index];
+                int char_len = ramp_char_len[ramp_index];
                 
                 // Get current character as a multi-byte sequence
                 char utf8_char[MAX_UTF8_CHAR_SIZE] = {0};
-                int char_len = ascii_ramp_char_length(ramp.characters, ramp_index);
                 memcpy(utf8_char, &ramp.characters[char_pos], char_len);
                 
                 // Write color and UTF-8 character to output buffer
