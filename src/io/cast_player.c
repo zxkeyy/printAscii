@@ -28,13 +28,15 @@ int cast_player_play(const char* path) {
     printf("\033[2J\033[H\033[?25l");
     fflush(stdout);
 
-    // Provide a sufficiently large buffer for terminal sequences frames
-    char line[1048576]; 
+    // Use getline for dynamically sized lines to handle extremely large high-res frames
+    char* line = NULL;
+    size_t line_cap = 0;
+    ssize_t line_len;
     double last_time = 0.0;
     int first_frame = 1;
 
     // Read skipping the first header line or lines that don't look like array chunks
-    while (fgets(line, sizeof(line), f) && !g_player_interrupted) {
+    while ((line_len = getline(&line, &line_cap, f)) > 0 && !g_player_interrupted) {
         if (line[0] != '[') continue;
 
         char* p = line + 1;
@@ -74,10 +76,16 @@ int cast_player_play(const char* path) {
                     else if (*p == 'e') out[out_idx++] = '\033'; 
                     else if (*p == 'u') {
                         unsigned int codepoint = 0;
-                        if (sscanf(p + 1, "%04x", &codepoint) == 1) {
-                            out[out_idx++] = (char)codepoint;
-                            p += 4;
+                        for (int i = 0; i < 4; i++) {
+                            char c = *(p + 1 + i);
+                            if (!c) break;
+                            codepoint <<= 4;
+                            if (c >= '0' && c <= '9') codepoint |= (c - '0');
+                            else if (c >= 'a' && c <= 'f') codepoint |= (c - 'a' + 10);
+                            else if (c >= 'A' && c <= 'F') codepoint |= (c - 'A' + 10);
                         }
+                        out[out_idx++] = (char)(codepoint & 0xFF);
+                        p += 4;
                     } else {
                         out[out_idx++] = *p;
                     }
@@ -102,7 +110,7 @@ int cast_player_play(const char* path) {
             }
             
             if (!g_player_interrupted) {
-                printf("%s", out);
+                fwrite(out, 1, out_idx, stdout);
                 fflush(stdout);
             }
             
@@ -112,6 +120,7 @@ int cast_player_play(const char* path) {
         }
     }
 
+    free(line);
     fclose(f);
     printf("\033[?25h\n");
     fflush(stdout);
