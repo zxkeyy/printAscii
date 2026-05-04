@@ -4,6 +4,30 @@
 #include <string.h>
 #include "conversion/image_to_halfblock.h"
 
+// they call me the optimiser
+// equivalent to sprintf(buffer, "\033[38;2;%d;%d;%dm\033[48;2;%d;%d;%dm\xE2\x96\x80", top_r, top_g, top_b, bot_r, bot_g, bot_b);
+static inline char* fast_append_color(char* p, uint8_t r, uint8_t g, uint8_t b, int is_bg) {
+    *p++ = '\033'; *p++ = '['; 
+    *p++ = is_bg ? '4' : '3'; *p++ = '8'; *p++ = ';'; *p++ = '2'; *p++ = ';';
+    
+    if (r >= 100) { *p++ = '0' + (r / 100); *p++ = '0' + ((r / 10) % 10); *p++ = '0' + (r % 10); }
+    else if (r >= 10) { *p++ = '0' + (r / 10); *p++ = '0' + (r % 10); }
+    else { *p++ = '0' + r; }
+    *p++ = ';';
+    
+    if (g >= 100) { *p++ = '0' + (g / 100); *p++ = '0' + ((g / 10) % 10); *p++ = '0' + (g % 10); }
+    else if (g >= 10) { *p++ = '0' + (g / 10); *p++ = '0' + (g % 10); }
+    else { *p++ = '0' + g; }
+    *p++ = ';';
+    
+    if (b >= 100) { *p++ = '0' + (b / 100); *p++ = '0' + ((b / 10) % 10); *p++ = '0' + (b % 10); }
+    else if (b >= 10) { *p++ = '0' + (b / 10); *p++ = '0' + (b % 10); }
+    else { *p++ = '0' + b; }
+    *p++ = 'm';
+    
+    return p;
+}
+
 char* image_to_halfblock(Image* img) {
     if (img == NULL) {
         fprintf(stderr, "Image is NULL\n");
@@ -25,49 +49,76 @@ char* image_to_halfblock(Image* img) {
 
     size_t pos = 0; // To track position in output buffer
 
-    // Format: foreground color (top pixel), background color (bottom pixel), Unicode top half-block '▀'
-    const char* format_string = "\033[38;2;%d;%d;%dm\033[48;2;%d;%d;%dm\xE2\x96\x80";
+    int channels = img->channels;
+    int row_stride = img->width * channels;
+    uint8_t* pixels = img->pixels;
 
     for (int y = 0; y < img->height; y += 2) {
+        uint8_t* top_row = pixels + y * row_stride;
+        uint8_t* bot_row = (y + 1 < img->height) ? (pixels + (y + 1) * row_stride) : NULL;
+
+        int prev_top_r = -1, prev_top_g = -1, prev_top_b = -1;
+        int prev_bot_r = -1, prev_bot_g = -1, prev_bot_b = -1;
+        char* p = &output[pos];
+
         for(int x = 0; x < img->width; x++) {
-            // Get the top pixel color
-            RGBAColor top_color = get_rgba_color(img, x, y);
-            uint8_t top_r = top_color.r;
-            uint8_t top_g = top_color.g;
-            uint8_t top_b = top_color.b;
+            uint8_t top_r, top_g, top_b;
+            uint8_t* top_pixel = top_row + x * channels;
             
-            // Get the bottom pixel color (if we're not at the very bottom edge)
+            if (channels >= 3) {
+                top_r = top_pixel[0];
+                top_g = top_pixel[1];
+                top_b = top_pixel[2];
+            } else {
+                top_r = top_g = top_b = top_pixel[0];
+            }
+            
             uint8_t bot_r = 0, bot_g = 0, bot_b = 0;
-            if (y + 1 < img->height) {
-                RGBAColor bot_color = get_rgba_color(img, x, y + 1);
-                bot_r = bot_color.r;
-                bot_g = bot_color.g;
-                bot_b = bot_color.b;
+            if (bot_row) {
+                uint8_t* bot_pixel = bot_row + x * channels;
+                if (channels >= 3) {
+                    bot_r = bot_pixel[0];
+                    bot_g = bot_pixel[1];
+                    bot_b = bot_pixel[2];
+                } else {
+                    bot_r = bot_g = bot_b = bot_pixel[0];
+                }
             }
 
-            int written = snprintf(&output[pos], buffer_size - pos, format_string, 
-                                   top_r, top_g, top_b, 
-                                   bot_r, bot_g, bot_b);
+            // Only append color if it changed (Deduplication reduces buffer & terminal payload)
+            if (top_r != prev_top_r || top_g != prev_top_g || top_b != prev_top_b) {
+                p = fast_append_color(p, top_r, top_g, top_b, 0);
+                prev_top_r = top_r; prev_top_g = top_g; prev_top_b = top_b;
+            }
             
-            if (written < 0 || (size_t)written >= buffer_size - pos) {
+            if (bot_r != prev_bot_r || bot_g != prev_bot_g || bot_b != prev_bot_b) {
+                p = fast_append_color(p, bot_r, bot_g, bot_b, 1);
+                prev_bot_r = bot_r; prev_bot_g = bot_g; prev_bot_b = bot_b;
+            }
+
+            // Append upper halfblock \xE2\x96\x80
+            *p++ = '\xE2';
+            *p++ = '\x96';
+            *p++ = '\x80';
+
+            // Check if remaining buffer gets dangerously close to maximum append boundary
+            if ((size_t)(p - output) > buffer_size - 60) {
                 fprintf(stderr, "Buffer overflow when writing to output\n");
                 free(output);
                 return NULL;
             }
-            pos += written;
         }
 
         // Reset color and append newline
-        int written = snprintf(output + pos, buffer_size - pos, "\033[0m\n");
-        
-        if (written < 0 || (size_t)written >= buffer_size - pos) {
-            fprintf(stderr, "Buffer overflow when writing to output\n");
-            free(output);
-            return NULL;
-        }
-        pos += written;
+        *p++ = '\033'; *p++ = '['; *p++ = '0'; *p++ = 'm'; *p++ = '\n';
+        pos = p - output;
     }
     
-    snprintf(output + pos, buffer_size - pos, "\033[0m");
+    output[pos++] = '\033';
+    output[pos++] = '[';
+    output[pos++] = '0';
+    output[pos++] = 'm';
+    output[pos++] = '\0';
+    
     return output;
 }
