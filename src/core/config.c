@@ -47,10 +47,25 @@ const AppConfig DEFAULT_CONFIG = {
     .ramp = {0} // Initialize all to zero and set it later in get function, because C ¯\_(ツ)_/¯.
 };
 
+static float get_terminal_font_aspect_ratio(void) {
+    if (isatty(STDOUT_FILENO)) {
+        struct winsize w;
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != -1) {
+            if (w.ws_xpixel > 0 && w.ws_ypixel > 0 && w.ws_col > 0 && w.ws_row > 0) {
+                float char_width = (float)w.ws_xpixel / w.ws_col;
+                float char_height = (float)w.ws_ypixel / w.ws_row;
+                return char_width / char_height;
+            }
+        }
+    }
+    return 0.45f;
+}
+
 AppConfig get_default_config() {
     AppConfig config = DEFAULT_CONFIG;
     // Copy the default ramp
     config.ramp = DEFAULT_RAMP;
+    config.font_aspect_ratio = get_terminal_font_aspect_ratio();
 
     return config;
 }
@@ -344,6 +359,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     int explicit_threshold_set = 0;
     int explicit_dither_set = 0;
     int explicit_invert_set = 0;
+    int font_ratio_explicitly_set = 0;
     int explicit_threshold_value = 128;
     int explicit_dither_threshold = 128;
     int explicit_sobel_threshold = 128;
@@ -697,6 +713,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                         return -1;
                     }
                     config->font_aspect_ratio = ratio;
+                    font_ratio_explicitly_set = 1;
                 }
                 break;
                 
@@ -838,11 +855,6 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
     }
     if (!width_set && height_set) {
         config->width = 0; // 0 means keep aspect ratio
-    }
-    
-    // Auto-adjust font aspect ratio for halfblock mode if not explicitly set
-    if (config->halfblock && config->font_aspect_ratio == 0.45f) {
-        config->font_aspect_ratio = 0.5f; // Halfblocks effectively double vertical resolution
     }
 
     return 0;

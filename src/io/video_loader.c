@@ -88,7 +88,7 @@ static float parse_fps_text(const char* text) {
     return (float)fps;
 }
 
-static int probe_video_info(const char* input_path, int* out_width, int* out_height, float* out_fps) {
+int probe_video_info(const char* input_path, int* out_width, int* out_height, float* out_fps) {
     char* escaped_path = shell_escape_single_quotes(input_path);
     if (!escaped_path) {
         fprintf(stderr, "Failed to allocate escaped input path\n");
@@ -152,7 +152,7 @@ static int probe_video_info(const char* input_path, int* out_width, int* out_hei
     return 0;
 }
 
-int video_stream_open(VideoStream* stream, const char* input_path, float fps_override) {
+int video_stream_open(VideoStream* stream, const char* input_path, float fps_override, int target_width, int target_height) {
     if (!stream || !input_path) {
         return -1;
     }
@@ -170,6 +170,9 @@ int video_stream_open(VideoStream* stream, const char* input_path, float fps_ove
         fps = fps_override;
     }
 
+    if (target_width > 0) width = target_width;
+    if (target_height > 0) height = target_height;
+
     char* escaped_path = shell_escape_single_quotes(input_path);
     if (!escaped_path) {
         fprintf(stderr, "Failed to allocate escaped input path\n");
@@ -180,8 +183,8 @@ int video_stream_open(VideoStream* stream, const char* input_path, float fps_ove
     int written = snprintf(
         command,
         sizeof(command),
-        "ffmpeg -hide_banner -loglevel fatal -nostats -i '%s' -f rawvideo -pix_fmt rgb24 -vsync 0 -",
-        escaped_path
+        "ffmpeg -hide_banner -loglevel fatal -nostats -i '%s' -vf 'scale=%d:%d' -f rawvideo -pix_fmt rgb24 -vsync 0 -",
+        escaped_path, width, height
     );
     free(escaped_path);
 

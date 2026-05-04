@@ -117,7 +117,17 @@ int video_pipeline_run_terminal(const AppConfig* config) {
 
     while (!g_video_interrupted) {
         VideoStream stream;
-        if (video_stream_open(&stream, config->input_path, config->video_fps) != 0) {
+        
+        if (probe_video_info(config->input_path, &stream.width, &stream.height, &stream.fps) != 0) {
+            fprintf(stderr, "Failed to probe video info\n");
+            exit_code = EXIT_FAILURE;
+            break;
+        }
+
+        AppConfig mutable_config = *config; // Create mutable copy
+        pipeline_calculate_dimensions(&mutable_config, &(Image){.width = stream.width, .height = stream.height});
+        
+        if (video_stream_open(&stream, config->input_path, stream.fps, mutable_config.width, mutable_config.height) != 0) {
             fprintf(stderr, "Failed to open video stream\n");
             exit_code = EXIT_FAILURE;
             break;
@@ -194,12 +204,31 @@ int video_pipeline_run_terminal(const AppConfig* config) {
             }
 
             printf("\033[H");
-            ProcessingResult* result = image_pipeline_process(frame, config);
+            // Ffmpeg has already done all the resizing to the exact pixel dimensions!
+            // We set width and height to -1 so the pipeline does not attempt to resize again
+            // and we set the exact image dimensions back to character dimensions so pipeline_calculate_dimensions
+            // will just naturally infer them without mathematically distorting them
+            AppConfig frame_config = *config;
+            frame_config.width = -1;
+            frame_config.height = -1;
+
+            ProcessingResult* result = image_pipeline_process(frame, &frame_config);
             
             if (config->export_cast_path && !cast_exp && processed_frames == 0) {
-                int w = config->width > 0 ? config->width : 100;
-                int h = config->height > 0 ? config->height : 40;
-                if (config->halfblock) h *= 2; 
+                int w = config->width;
+                int h = config->height;
+                
+                // If 0 was passed, calculate the characters based on the native ffmpeg output sizes
+                if (w == 0) {
+                     if (config->braille) w = stream.width / 2;
+                     else w = stream.width;
+                }
+                if (h == 0) {
+                     if (config->braille) h = stream.height / 4;
+                     else if (config->halfblock) h = stream.height / 2;
+                     else h = stream.height;
+                }
+                
                 cast_exp = cast_exporter_init(config->export_cast_path, w, h);
                 if (!cast_exp) {
                     fprintf(stderr, "Warning: Failed to open cast export file\n");

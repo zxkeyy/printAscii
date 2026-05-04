@@ -64,7 +64,7 @@ PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config,
     }
 
     // Step 1: Resize
-    if (config->width > 0 && config->height > 0) {
+    if (config->width > 0 && config->height > 0 && (img->width != config->width || img->height != config->height)) {
         if (!image_resize(img, config->width, config->height)) {
             if (error_stage) {
                 *error_stage = "resize";
@@ -194,25 +194,41 @@ PipelineStatus pipeline_handle_output(const ProcessingResult* result, const AppC
 }
 
 void pipeline_calculate_dimensions(AppConfig* config, const Image* img) {
-    // Handle default dimensions
-    if (config->width == -1) {
-        config->width = img->width;
+    int char_w = config->width;
+    int char_h = config->height;
+
+    // Handle default dimensions (-1 means keep image pixel size mapped to characters)
+    if (char_w == -1) {
+        if (config->braille) char_w = img->width / 2;
+        else char_w = img->width;
     }
-    if (config->height == -1) {
-        config->height = (int)(img->height * config->font_aspect_ratio);
+    if (char_h == -1) {
+        if (config->braille) char_h = img->height / 4;
+        else if (config->halfblock) char_h = img->height / 2;
+        else char_h = img->height;
     }
     
-    // Calculate width or height if one is 0 to keep aspect ratio
-    if (config->width == 0) {
-        config->width = (int)(((float)config->height / img->height * img->width) / config->font_aspect_ratio);
+    // Calculate width or height if one is 0 to keep image aspect ratio
+    // Target AR = img->width / img->height
+    // Current Character AR = W_chars / H_chars * config->font_aspect_ratio
+    // W_chars / H_chars = (img->width / img->height) / config->font_aspect_ratio
+    if (char_w == 0) {
+        char_w = (int)(((float)char_h * img->width) / (img->height * config->font_aspect_ratio));
     }
-    if (config->height == 0) {
-        config->height = (int)(((float)config->width / img->width * img->height) * config->font_aspect_ratio);
+    if (char_h == 0) {
+        char_h = (int)(((float)char_w * img->height * config->font_aspect_ratio) / img->width);
     }
 
-    // Half blocks require two vertical pixels for every output character
-    if (config->halfblock) {
-        config->height *= 2;
+    // Now securely map back the character bounds into the internal image scaling dimensions
+    if (config->braille) {
+        config->width = char_w * 2;
+        config->height = char_h * 4;
+    } else if (config->halfblock){
+        config->width = char_w;
+        config->height = char_h * 2;
+    } else {
+        config->width = char_w;
+        config->height = char_h;
     }
 }
 
