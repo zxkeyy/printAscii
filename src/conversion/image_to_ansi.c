@@ -5,49 +5,88 @@
 #include "conversion/image_to_ansi.h"
 #include "core/ascii_ramp.h"
 
+static inline char* fast_append_color(char* p, uint8_t r, uint8_t g, uint8_t b, int is_bg) {
+    *p++ = '\033'; *p++ = '['; 
+    *p++ = is_bg ? '4' : '3'; *p++ = '8'; *p++ = ';'; *p++ = '2'; *p++ = ';';
+    
+    if (r >= 100) { *p++ = '0' + (r / 100); *p++ = '0' + ((r / 10) % 10); *p++ = '0' + (r % 10); }
+    else if (r >= 10) { *p++ = '0' + (r / 10); *p++ = '0' + (r % 10); }
+    else { *p++ = '0' + r; }
+    *p++ = ';';
+    
+    if (g >= 100) { *p++ = '0' + (g / 100); *p++ = '0' + ((g / 10) % 10); *p++ = '0' + (g % 10); }
+    else if (g >= 10) { *p++ = '0' + (g / 10); *p++ = '0' + (g % 10); }
+    else { *p++ = '0' + g; }
+    *p++ = ';';
+    
+    if (b >= 100) { *p++ = '0' + (b / 100); *p++ = '0' + ((b / 10) % 10); *p++ = '0' + (b % 10); }
+    else if (b >= 10) { *p++ = '0' + (b / 10); *p++ = '0' + (b % 10); }
+    else { *p++ = '0' + b; }
+    *p++ = 'm';
+    
+    return p;
+}
+
 char* image_to_ansi(Image* img, char* tiling_string, RGBColor background_color, int background){
     if (img == NULL) {
         fprintf(stderr, "Image is NULL\n");
         return NULL;
     }
 
-    // ANSI escape code for colored character, uses 24-bit color, 38 for character color and 48 for background color
-    const char* format_string = background ? "\033[48;2;%03d;%03d;%03dm%c" : "\033[38;2;%03d;%03d;%03dm%c";
-
     const int tiling_string_length = strlen(tiling_string);
     int index = 0;
 
     // Calculate safe buffer size
     // 25 characters per pixel (including escape codes), 6 characters for newline and reset, 10 characters for final reset and null terminator
-    size_t buffer_size = (img->width * img->height * 25) + (img->height * 6) + 5;
+    size_t buffer_size = (img->width * img->height * 25) + (img->height * 6) + 15;
     char* output = malloc(buffer_size);
     if (!output) {
         perror("Failed to allocate output buffer");
         return NULL;
     }
 
-    size_t pos = 0; // To track osition in output buffer
+    int channels = img->channels;
+    int row_stride = img->width * channels;
+    uint8_t* pixels = img->pixels;
+    char* p = output;
 
     for (int y = 0; y < img->height; y++) {
+        uint8_t* curr_row = pixels + y * row_stride;
+        int prev_r = -1, prev_g = -1, prev_b = -1;
+
         for(int x = 0; x < img->width; x++) {
-            const RGBColor color = get_rgb_color(img, x, y, &background_color);
+            uint8_t* pixel = curr_row + x * channels;
             
-            // Write color and character to output buffer
-            int written = snprintf(&output[pos], buffer_size - pos, format_string, color.r, color.g, color.b, tiling_string[index++ % tiling_string_length]);
+            uint8_t r, g, b;
+            if (img->type == IMAGE_TYPE_RGBA) {
+                uint8_t alpha = pixel[3];
+                r = (pixel[0] * alpha / 255) + (background_color.r * (255 - alpha) / 255);
+                g = (pixel[1] * alpha / 255) + (background_color.g * (255 - alpha) / 255);
+                b = (pixel[2] * alpha / 255) + (background_color.b * (255 - alpha) / 255);
+            } else if (channels >= 3) {
+                r = pixel[0];
+                g = pixel[1];
+                b = pixel[2];
+            } else {
+                r = g = b = pixel[0];
+            }
+            
+            if (r != prev_r || g != prev_g || b != prev_b) {
+                p = fast_append_color(p, r, g, b, background);
+                prev_r = r; prev_g = g; prev_b = b;
+            }
+            
+            *p++ = tiling_string[index++ % tiling_string_length];
     
-            // Check for buffer overflow
-            if (written < 0 || written >= buffer_size - pos) {
+            if ((size_t)(p - output) > buffer_size - 60) {
                 fprintf(stderr, "Buffer overflow when writing to output\n");
                 free(output);
                 return NULL;
             }
-
-            pos += written;
         }
-        int written = snprintf(output + pos, buffer_size - pos, "\033[0m\n"); // Reset color and newline
-        pos += written;
+        *p++ = '\033'; *p++ = '['; *p++ = '0'; *p++ = 'm'; *p++ = '\n';
     }
-    snprintf(output + pos, buffer_size - pos, "\033[0m");
+    *p++ = '\033'; *p++ = '['; *p++ = '0'; *p++ = 'm'; *p++ = '\0';
 
     return output;
 }
@@ -58,27 +97,18 @@ char* image_to_alpha_ansi(Image* img, char* tiling_string, AsciiRamp ramp, int b
         return NULL;
     }
 
-    // ANSI escape code for colored character, uses 24-bit color, 38 for character color and 48 for background color
-    const char* format_string = background ? "\033[48;2;%03d;%03d;%03dm%c" : "\033[38;2;%03d;%03d;%03dm%c";
-
     const int tiling_string_length = strlen(tiling_string);
     int index = 0;
 
-    // Calculate safe buffer size
-    // 25 characters per pixel (including escape codes), 6 characters for newline and reset, 10 characters for final reset and null terminator
-    size_t buffer_size = (img->width * img->height * 25) + (img->height * 6) + 5;
+    size_t buffer_size = (img->width * img->height * 25) + (img->height * 6) + 15;
     char* output = malloc(buffer_size);
     if (!output) {
         perror("Failed to allocate output buffer");
         return NULL;
     }
 
-    size_t pos = 0; // To track osition in output buffer
-
-    // Calculate total ramp length once
     int ramp_length = ascii_ramp_total_chars(ramp.characters);
     
-    // Pre-calculate ramp character positions and lengths to avoid quadratic O(N^2) overhead
     int ramp_char_pos[1024];
     int ramp_char_len[1024];
     int current_pos = 0;
@@ -94,51 +124,58 @@ char* image_to_alpha_ansi(Image* img, char* tiling_string, AsciiRamp ramp, int b
         current_pos += len;
     }
 
-    for (int y = 0; y < img->height; y++) {
-        for(int x = 0; x < img->width; x++) {
-            const RGBAColor color = get_rgba_color(img, x, y);
-            int written;
+    int channels = img->channels;
+    int row_stride = img->width * channels;
+    uint8_t* pixels = img->pixels;
+    char* p = output;
 
-            if(color.a == 0){
-                // No need to use color for transparent pixels, adds a space instead
-                written = snprintf(&output[pos], buffer_size - pos, "\033[0m ");
-            }else if(color.a == 255){
-                // Write color and character to output buffer
-                // Use tiling string for opaque pixels
-                written = snprintf(&output[pos], buffer_size - pos, format_string, color.r, color.g, color.b, tiling_string[index++ % tiling_string_length]);
+    for (int y = 0; y < img->height; y++) {
+        uint8_t* curr_row = pixels + y * row_stride;
+        int prev_r = -1, prev_g = -1, prev_b = -1;
+
+        for(int x = 0; x < img->width; x++) {
+            uint8_t* pixel = curr_row + x * channels;
+            
+            uint8_t r, g, b, a;
+            if (img->type == IMAGE_TYPE_RGBA) {
+                r = pixel[0]; g = pixel[1]; b = pixel[2]; a = pixel[3];
+            } else if (channels >= 3) {
+                r = pixel[0]; g = pixel[1]; b = pixel[2]; a = 255;
+            } else {
+                r = g = b = pixel[0]; a = 255;
+            }
+
+            if(a == 0){
+                *p++ = '\033'; *p++ = '['; *p++ = '0'; *p++ = 'm'; *p++ = ' ';
+                prev_r = -1; prev_g = -1; prev_b = -1;
             }else{
-                // Use ramp for semi-transparent pixels
-                int ramp_index = color.a * (ramp_length-1) / 255;
-                int char_pos = ramp_char_pos[ramp_index];
-                int char_len = ramp_char_len[ramp_index];
+                if (r != prev_r || g != prev_g || b != prev_b) {
+                    p = fast_append_color(p, r, g, b, background);
+                    prev_r = r; prev_g = g; prev_b = b;
+                }
                 
-                // Get current character as a multi-byte sequence
-                char utf8_char[MAX_UTF8_CHAR_SIZE] = {0};
-                memcpy(utf8_char, &ramp.characters[char_pos], char_len);
-                
-                // Write color and UTF-8 character to output buffer
-                written = snprintf(&output[pos], buffer_size - pos, format_string, color.r, color.g, color.b, utf8_char[0]);
-                // If character is multi-byte, we need to append the rest of the bytes manually
-                if (char_len > 1) {
-                    memcpy(&output[pos + written], &utf8_char[1], char_len - 1);
-                    written += (char_len - 1);
+                if(a == 255){
+                    *p++ = tiling_string[index++ % tiling_string_length];
+                }else{
+                    int ramp_index = a * (ramp_length-1) / 255;
+                    int char_pos = ramp_char_pos[ramp_index];
+                    int char_len = ramp_char_len[ramp_index];
+                    
+                    for(int c=0; c<char_len; c++) {
+                        *p++ = ramp.characters[char_pos + c];
+                    }
                 }
             }
-            
     
-            // Check for buffer overflow
-            if (written < 0 || written >= buffer_size - pos) {
+            if ((size_t)(p - output) > buffer_size - 60) {
                 fprintf(stderr, "Buffer overflow when writing to output\n");
                 free(output);
                 return NULL;
             }
-
-            pos += written;
         }
-        int written = snprintf(output + pos, buffer_size - pos, "\033[0m\n"); // Reset color and newline
-        pos += written;
+        *p++ = '\033'; *p++ = '['; *p++ = '0'; *p++ = 'm'; *p++ = '\n';
     }
-    snprintf(output + pos, buffer_size - pos, "\033[0m");
+    *p++ = '\033'; *p++ = '['; *p++ = '0'; *p++ = 'm'; *p++ = '\0';
 
     return output;
 }
