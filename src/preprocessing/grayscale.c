@@ -4,12 +4,12 @@
 #include <preprocessing/grayscale.h>
 
 uint8_t RGB_blend(uint8_t r, uint8_t g, uint8_t b) {
-    return (uint8_t)(0.3f * (float)r + 0.6f * (float)g + 0.1f * (float)b);
+    return (uint8_t)((r * 77 + g * 153 + b * 26) >> 8);
 }
 
 uint8_t RGBA_blend(uint8_t r, uint8_t g, uint8_t b, uint8_t a, uint8_t alpha_value) {
     const uint8_t rgb = RGB_blend(r, g, b);
-    return (1 - a / 255.0) * alpha_value + (a / 255.0) * rgb;
+    return (uint8_t)(((255 - a) * alpha_value + a * rgb) / 255);
 }
 
 bool RGB_image_to_grayscale(Image* img) {
@@ -23,21 +23,26 @@ bool RGB_image_to_grayscale(Image* img) {
         return false;
     }
 
-    uint8_t* pixels = malloc(img->width * img->height * sizeof(uint8_t));
-    if(!pixels) {
-        perror("Failed to allocate grayscale buffer");
-        return false;
+    int total_pixels = img->width * img->height;
+    uint8_t* src = img->pixels;
+    uint8_t* dst = img->pixels; // Process in-place to bypass malloc/free bottlenecks completely!
+    
+    int i = 0;
+    int limit = total_pixels - 3;
+    // Loop unrolling to process 4 pixels per iteration
+    for (; i < limit; i += 4) {
+        dst[0] = (src[0]*77 + src[1]*153 + src[2]*26) >> 8;
+        dst[1] = (src[3]*77 + src[4]*153 + src[5]*26) >> 8;
+        dst[2] = (src[6]*77 + src[7]*153 + src[8]*26) >> 8;
+        dst[3] = (src[9]*77 + src[10]*153 + src[11]*26) >> 8;
+        src += 12;
+        dst += 4;
+    }
+    for (; i < total_pixels; i++) {
+        *dst++ = (src[0]*77 + src[1]*153 + src[2]*26) >> 8;
+        src += 3;
     }
 
-    for(int y = 0; y < img->height; y++) {
-        for(int x = 0; x < img->width; x++) {
-            const uint8_t* pixel = image_pixel_at(img, x, y);
-            pixels[y * img->width + x] = RGB_blend(pixel[0], pixel[1], pixel[2]);
-        }
-    }
-
-    free(img->pixels);
-    img->pixels = pixels;
     img->type = IMAGE_TYPE_GRAY;
     img->channels = 1;
     return true;
@@ -54,21 +59,18 @@ bool RGBA_image_to_grayscale(Image* img, uint8_t alpha_value) {
         return false;
     }
 
-    uint8_t* pixels = malloc(img->width * img->height * sizeof(uint8_t));
-    if(!pixels) {
-        perror("Failed to allocate grayscale buffer");
-        return false;
+    int total_pixels = img->width * img->height;
+    uint8_t* src = img->pixels;
+    uint8_t* dst = img->pixels; // In-place
+    
+    for (int i = 0; i < total_pixels; i++) {
+        uint8_t a = src[3];
+        uint32_t rgb = (src[0]*77 + src[1]*153 + src[2]*26) >> 8;
+        uint32_t val = (255 - a) * alpha_value + a * rgb;
+        *dst++ = (val * 257) >> 16; // Fast integer approximation for / 255
+        src += 4;
     }
 
-    for(int y = 0; y < img->height; y++) {
-        for(int x = 0; x < img->width; x++) {
-            const uint8_t* pixel = image_pixel_at(img, x, y);
-            pixels[y * img->width + x] = RGBA_blend(pixel[0], pixel[1], pixel[2], pixel[3], alpha_value);
-        }
-    }
-
-    free(img->pixels);
-    img->pixels = pixels;
     img->type = IMAGE_TYPE_GRAY;
     img->channels = 1;
     return true;
