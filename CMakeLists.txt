@@ -21,3 +21,8 @@ if(BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+option(BUILD_BENCHMARKS "Build benchmarks suite" ON)
+if(BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
+endif()
