@@ -33,12 +33,39 @@ char* image_to_ansi(Image* img, char* tiling_string, RGBColor background_color, 
         return NULL;
     }
 
-    const int tiling_string_length = strlen(tiling_string);
-    int index = 0;
+    // Parse tiling_string into UTF-8-aware tiles (positions + lengths)
+    const int tiling_string_len = (int)strlen(tiling_string);
+    int tile_pos[1024];
+    int tile_len[1024];
+    int tile_count = 0;
+    int tile_max_len = 1;
+    int ti = 0;
+    while (ti < tiling_string_len && tile_count < 1024) {
+        unsigned char c = (unsigned char)tiling_string[ti];
+        int l = 1;
+        if ((c & 0xE0) == 0xC0) l = 2;
+        else if ((c & 0xF0) == 0xE0) l = 3;
+        else if ((c & 0xF8) == 0xF0) l = 4;
+        if (ti + l > tiling_string_len) break;
+        tile_pos[tile_count] = ti;
+        tile_len[tile_count] = l;
+        if (l > tile_max_len) tile_max_len = l;
+        tile_count++;
+        ti += l;
+    }
+    if (tile_count == 0) {
+        // fallback to single ASCII space if tiling string is empty/invalid
+        tiling_string = " ";
+        tile_pos[0] = 0;
+        tile_len[0] = 1;
+        tile_count = 1;
+        tile_max_len = 1;
+    }
+    int tile_index = 0;
 
     // Calculate safe buffer size
-    // 25 characters per pixel (including escape codes), 6 characters for newline and reset, 10 characters for final reset and null terminator
-    size_t buffer_size = (img->width * img->height * 25) + (img->height * 6) + 15;
+    // 25 characters per pixel (including escape codes), plus space for multi-byte tiles
+    size_t buffer_size = (img->width * img->height * (25 + (tile_max_len - 1))) + (img->height * 6) + 15;
     char* output = malloc(buffer_size);
     if (!output) {
         perror("Failed to allocate output buffer");
@@ -76,7 +103,13 @@ char* image_to_ansi(Image* img, char* tiling_string, RGBColor background_color, 
                 prev_r = r; prev_g = g; prev_b = b;
             }
             
-            *p++ = tiling_string[index++ % tiling_string_length];
+            // Append next UTF-8 tile
+            int tl = tile_len[tile_index];
+            int tpos = tile_pos[tile_index];
+            for (int kk = 0; kk < tl; kk++) {
+                *p++ = tiling_string[tpos + kk];
+            }
+            tile_index = (tile_index + 1) % tile_count;
     
             if ((size_t)(p - output) > buffer_size - 60) {
                 fprintf(stderr, "Buffer overflow when writing to output\n");
@@ -97,10 +130,36 @@ char* image_to_alpha_ansi(Image* img, char* tiling_string, AsciiRamp ramp, int b
         return NULL;
     }
 
-    const int tiling_string_length = strlen(tiling_string);
-    int index = 0;
+    // Parse tiling_string into UTF-8-aware tiles for alpha-aware ANSI output
+    const int tiling_string_len2 = (int)strlen(tiling_string);
+    int tile_pos2[1024];
+    int tile_len2[1024];
+    int tile_count2 = 0;
+    int tile_max_len2 = 1;
+    int ti2 = 0;
+    while (ti2 < tiling_string_len2 && tile_count2 < 1024) {
+        unsigned char c = (unsigned char)tiling_string[ti2];
+        int l = 1;
+        if ((c & 0xE0) == 0xC0) l = 2;
+        else if ((c & 0xF0) == 0xE0) l = 3;
+        else if ((c & 0xF8) == 0xF0) l = 4;
+        if (ti2 + l > tiling_string_len2) break;
+        tile_pos2[tile_count2] = ti2;
+        tile_len2[tile_count2] = l;
+        if (l > tile_max_len2) tile_max_len2 = l;
+        tile_count2++;
+        ti2 += l;
+    }
+    if (tile_count2 == 0) {
+        tiling_string = " ";
+        tile_pos2[0] = 0;
+        tile_len2[0] = 1;
+        tile_count2 = 1;
+        tile_max_len2 = 1;
+    }
+    int tile_index2 = 0;
 
-    size_t buffer_size = (img->width * img->height * 25) + (img->height * 6) + 15;
+    size_t buffer_size = (img->width * img->height * (25 + (tile_max_len2 - 1))) + (img->height * 6) + 15;
     char* output = malloc(buffer_size);
     if (!output) {
         perror("Failed to allocate output buffer");
@@ -155,7 +214,12 @@ char* image_to_alpha_ansi(Image* img, char* tiling_string, AsciiRamp ramp, int b
                 }
                 
                 if(a == 255){
-                    *p++ = tiling_string[index++ % tiling_string_length];
+                    int tl = tile_len2[tile_index2];
+                    int tpos = tile_pos2[tile_index2];
+                    for (int kk = 0; kk < tl; kk++) {
+                        *p++ = tiling_string[tpos + kk];
+                    }
+                    tile_index2 = (tile_index2 + 1) % tile_count2;
                 }else{
                     int ramp_index = a * (ramp_length-1) / 255;
                     int char_pos = ramp_char_pos[ramp_index];
