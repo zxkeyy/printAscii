@@ -50,7 +50,10 @@ char* intensity_map(const Image* img, const AsciiRamp* ramp){
         for (int x = 0; x < img->width; x++) {
             const uint8_t* pixel = image_pixel_at(img, x, y);
             const uint8_t intensity = pixel[0];
-            const int ramp_index = intensity * (ramp_length-1) / 255;
+            int ramp_index = intensity * ramp_length / 256;
+            if (ramp_index >= ramp_length) {
+                ramp_index = ramp_length - 1;
+            }
             
             // Get position and length of UTF-8 character in the ramp using the cache
             int char_pos = ramp_char_pos[ramp_index];
