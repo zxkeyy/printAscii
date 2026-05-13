@@ -30,6 +30,9 @@ typedef struct {
     float canny_edge_detection_sigma;
     int canny_edge_detection_high_threshold;
     int canny_edge_detection_low_threshold;
+    int canny_auto_sigma;
+    int canny_auto_high;
+    int canny_auto_low;
     int braille;
     int halfblock;
     int verbose;

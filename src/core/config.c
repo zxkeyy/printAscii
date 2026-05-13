@@ -39,6 +39,9 @@ const AppConfig DEFAULT_CONFIG = {
     .canny_edge_detection_sigma = 0.8,
     .canny_edge_detection_high_threshold = 120,
     .canny_edge_detection_low_threshold = 50,
+    .canny_auto_sigma = 1,
+    .canny_auto_high = 1,
+    .canny_auto_low = 1,
     .braille = 0,
     .halfblock = 0,
     .font_aspect_ratio = 0.45,
@@ -186,6 +189,12 @@ static void apply_preset(const PresetDefinition* preset,
     config->canny_edge_detection_sigma = preset->canny_sigma;
     config->canny_edge_detection_high_threshold = preset->canny_high;
     config->canny_edge_detection_low_threshold = preset->canny_low;
+
+    if (preset->edge_mode == EDGE_MODE_CANNY) {
+        config->canny_auto_sigma = 0;
+        config->canny_auto_high = 0;
+        config->canny_auto_low = 0;
+    }
 }
 
 static void print_available_presets(void) {
@@ -284,9 +293,9 @@ void print_usage(const char* program_name) {
     printf("Edge Detection:\n");
     printf("  -e, --edge <type>          Edge mode: none, sobel, canny (default: none)\n");
     printf("      --edge-threshold <n>   Sobel edge threshold (default: 128)\n");
-    printf("      --canny-sigma <f>      Canny sigma (default: 0.8)\n");
-    printf("      --canny-high <n>       Canny high threshold (default: 120)\n");
-    printf("      --canny-low <n>        Canny low threshold (default: 50)\n\n");
+    printf("      --canny-sigma <f>      Canny sigma (auto if not set)\n");
+    printf("      --canny-high <n>       Canny high threshold (auto if not set)\n");
+    printf("      --canny-low <n>        Canny low threshold (auto if not set)\n\n");
     
     printf("General Options:\n");
     printf("      --debug-dir <dir>      Directory for verbose debug artifacts (default: .)\n");
@@ -614,6 +623,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                             free(copy);
                             return -1;
                         }
+                        config->canny_auto_sigma = 0;
                         
                         token = strtok(NULL, ",");
                         if (token) {
@@ -624,6 +634,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                                 return -1;
                             }
                             config->canny_edge_detection_high_threshold = high_threshold;
+                            config->canny_auto_high = 0;
                             
                             token = strtok(NULL, ",");
                             if (token) {
@@ -634,6 +645,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                                     return -1;
                                 }
                                 config->canny_edge_detection_low_threshold = low_threshold;
+                                config->canny_auto_low = 0;
                             }
                         }
                     }
@@ -663,6 +675,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     return -1;
                 }
                 explicit_canny_sigma = config->canny_edge_detection_sigma;
+                config->canny_auto_sigma = 0;
                 break;
 
             case 5:
@@ -672,6 +685,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     return -1;
                 }
                 explicit_canny_high = config->canny_edge_detection_high_threshold;
+                config->canny_auto_high = 0;
                 break;
 
             case 6:
@@ -681,6 +695,7 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
                     return -1;
                 }
                 explicit_canny_low = config->canny_edge_detection_low_threshold;
+                config->canny_auto_low = 0;
                 break;
 
             case 7:
@@ -767,14 +782,17 @@ int parse_arguments(int argc, char* argv[], AppConfig* config){
 
     if (canny_sigma_set) {
         config->canny_edge_detection_sigma = explicit_canny_sigma;
+        config->canny_auto_sigma = 0;
     }
 
     if (canny_high_set) {
         config->canny_edge_detection_high_threshold = explicit_canny_high;
+        config->canny_auto_high = 0;
     }
 
     if (canny_low_set) {
         config->canny_edge_detection_low_threshold = explicit_canny_low;
+        config->canny_auto_low = 0;
     }
 
     if (!explicit_edge_mode_set && selected_preset && (edge_threshold_set || canny_sigma_set || canny_high_set || canny_low_set)) {
@@ -989,11 +1007,27 @@ void print_config(const AppConfig* config) {
     if (config->dither)
         printf("  Dithering: Enabled (threshold: %d)\n", config->dither_threshold);
     
-    if (config->canny_edge_detection)
-        printf("  Edge detection: Canny (sigma: %.1f, high: %d, low: %d)\n", 
-               config->canny_edge_detection_sigma,
-               config->canny_edge_detection_high_threshold,
-               config->canny_edge_detection_low_threshold);
+    if (config->canny_edge_detection) {
+        printf("  Edge detection: Canny (sigma: ");
+        if (config->canny_auto_sigma) {
+            printf("auto");
+        } else {
+            printf("%.2f", config->canny_edge_detection_sigma);
+        }
+        printf(", high: ");
+        if (config->canny_auto_high) {
+            printf("auto");
+        } else {
+            printf("%d", config->canny_edge_detection_high_threshold);
+        }
+        printf(", low: ");
+        if (config->canny_auto_low) {
+            printf("auto");
+        } else {
+            printf("%d", config->canny_edge_detection_low_threshold);
+        }
+        printf(")\n");
+    }
     else if (config->sobel_edge_detection)
         printf("  Edge detection: Sobel (threshold: %d)\n", 
                config->sobel_edge_detection_threshold);

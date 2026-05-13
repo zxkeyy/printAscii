@@ -95,7 +95,10 @@ PipelineStatus pipeline_apply_preprocessing(Image* img, const AppConfig* config,
     if (config->canny_edge_detection) {
         if (!canny_edge_detection(img, config->canny_edge_detection_sigma,
                                   config->canny_edge_detection_high_threshold,
-                                  config->canny_edge_detection_low_threshold)) {
+                                  config->canny_edge_detection_low_threshold,
+                                  config->canny_auto_sigma,
+                                  config->canny_auto_high,
+                                  config->canny_auto_low)) {
             if (error_stage) {
                 *error_stage = "canny-edge-detection";
             }
